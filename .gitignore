@@ -1,32 +1,42 @@
-# Prerequisites
-*.d
+# Generic ignores
+*.log
+*.db
+*.pyc
+._*
+__pycache__
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+# Directory (contents) ignores
+.pio
+.storage
+deps
 
-# Precompiled Headers
-*.gch
-*.pch
+# VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
+# Local History for Visual Studio Code
+.history/
 
-# Fortran module files
-*.mod
-*.smod
+# Built Visual Studio Code Extensions
+*.vsix
 
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
+# Specific file ignores
+.HA_VERSION
+ip_bans.yaml
+known_devices.yaml
+secrets.yaml
+.google_maps_location_sharing*
 
-# Executables
-*.exe
-*.out
-*.app
+# ESPHome ignores
+esphome/secrets.yaml
+esphome/**/
+
+# Custom component I don't want to track here
+
+# OS files
+
+# Virtual environement
