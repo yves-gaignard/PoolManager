@@ -11,7 +11,7 @@
   #include <HTTPClient.h>
 #endif
 #include <ArduinoJson.h>
-#include "../config.h"
+#include "../include/config.h"
 
 
 #define MAX_PLUGINS 5
