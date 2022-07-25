@@ -51,7 +51,7 @@ void setup() {
   time_now.getCurrentNTPTime();
   
   // start Web Server
-  webserver_start();
+  PM_Web_Server_setup();
   //while ( ! IsWebServerStarted){
   //  IsWebServerStarted=StartWebServer (server);
   //  delay(100);
@@ -60,6 +60,7 @@ void setup() {
 }
 
 void loop(void) {
+  PM_Web_Server_loop();
   delay(2000);
   current_time = time_now.getCurrentNTPTime();
   ESP_LOGI(TAG, "Get Date and Time from NTP server: %s", time_now.convertTimeToString(current_time).c_str());
