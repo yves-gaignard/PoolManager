@@ -23,17 +23,22 @@
 
 static const char* TAG = "PM_main";
 
-// Global Variables
-enum WebServerType { OTAWebServer, WebServer };
+// List the type of web server possible
+enum WebServerType { 
+  OTAWebServer,   // HTTP web server supporting OTA update (Over-The-Air)
+  WebServer       // HTTP and HTTPS web servers
+};
+
+// Select the type of web server to instantiate
 WebServerType ServerType = OTAWebServer;
 
+// To manage the connection on Wifi
 boolean IsWifiConnected    = false;
-//boolean IsWebServerStarted = false;
 
 // To manage wifi between multiple networks
 WiFiMulti wifiMulti;
 
-// To manage time
+// To manage time from NTP server
 PM_Time time_now;
 time_t  current_time;
 
