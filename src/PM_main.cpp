@@ -18,7 +18,8 @@
 #include <PM_Constants.h>       // Pool manager constants definitions
 #include <PM_Time.h>            // Pool manager time management
 #include <PM_Wifi_Functions.h>  // Pool manager wifi management
-#include <PM_Web_Server.h>      // Pool manager web server management
+// #include <PM_Web_Server.h>      // Pool manager web server management
+#include <PM_OTA_Web_Server.h>  // Pool manager web server management
 
 static const char* TAG = "PM_main";
 
@@ -51,7 +52,8 @@ void setup() {
   time_now.getCurrentNTPTime();
   
   // start Web Server
-  PM_Web_Server_setup();
+  PM_OTA_Web_Server_setup();
+  //PM_Web_Server_setup();
   //while ( ! IsWebServerStarted){
   //  IsWebServerStarted=StartWebServer (server);
   //  delay(100);
@@ -60,7 +62,7 @@ void setup() {
 }
 
 void loop(void) {
-  PM_Web_Server_loop();
+  //PM_Web_Server_loop();
   delay(2000);
   current_time = time_now.getCurrentNTPTime();
   ESP_LOGI(TAG, "Get Date and Time from NTP server: %s", time_now.convertTimeToString(current_time).c_str());
