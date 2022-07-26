@@ -4,7 +4,7 @@
   Pool manager time management
 */
 
-// #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
+#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 
 // Standard library definitions
 #include <Arduino.h>
