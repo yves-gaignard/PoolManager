@@ -14,18 +14,21 @@
 #include <ESPAsyncWebServer.h>  // Library for Web Server Management 
 
 // Project definitions
-#include <PM_Structures.h>      // Pool manager structure definitions
-#include <PM_Constants.h>       // Pool manager constants definitions
-#include <PM_Time.h>            // Pool manager time management
-#include <PM_Wifi_Functions.h>  // Pool manager wifi management
-// #include <PM_Web_Server.h>      // Pool manager web server management
-#include <PM_OTA_Web_Server.h>  // Pool manager web server management
+#include "PM_Structures.h"      // Pool manager structure definitions
+#include "PM_Constants.h"       // Pool manager constants definitions
+#include "PM_Time.h"            // Pool manager time management
+#include "PM_Wifi_Functions.h"  // Pool manager wifi management
+#include "PM_Web_Server.h"      // Pool manager web server management
+#include "PM_OTA_Web_Server.h"  // Pool manager web server management
 
 static const char* TAG = "PM_main";
 
-// Variables
+// Global Variables
+enum WebServerType { OTAWebServer, WebServer };
+WebServerType ServerType = OTAWebServer;
+
 boolean IsWifiConnected    = false;
-boolean IsWebServerStarted = false;
+//boolean IsWebServerStarted = false;
 
 // To manage wifi between multiple networks
 WiFiMulti wifiMulti;
@@ -52,17 +55,22 @@ void setup() {
   time_now.getCurrentNTPTime();
   
   // start Web Server
-  PM_OTA_Web_Server_setup();
-  //PM_Web_Server_setup();
-  //while ( ! IsWebServerStarted){
-  //  IsWebServerStarted=StartWebServer (server);
-  //  delay(100);
-  //}
+  switch(ServerType)
+  {
+    case OTAWebServer: PM_OTA_Web_Server_setup();   break;
+    case WebServer:    PM_Web_Server_setup(); break;
+  }
 
+  delay(100);
 }
 
 void loop(void) {
-  //PM_Web_Server_loop();
+  // start Web Server
+  switch(ServerType)
+  {
+    case OTAWebServer: PM_OTA_Web_Server_loop();   break;
+    case WebServer:    PM_Web_Server_loop(); break;
+  }
   delay(2000);
   current_time = time_now.getCurrentNTPTime();
   ESP_LOGI(TAG, "Get Date and Time from NTP server: %s", time_now.convertTimeToString(current_time).c_str());
