@@ -16,12 +16,16 @@
 // Project definitions
 #include "PM_Structures.h"      // Pool manager structure definitions
 #include "PM_Constants.h"       // Pool manager constants definitions
+#include "PM_I2CScan.h"         // Pool manager I2C scan tools
 #include "PM_Time.h"            // Pool manager time management
 #include "PM_Wifi_Functions.h"  // Pool manager wifi management
 #include "PM_Web_Server.h"      // Pool manager web server management
 #include "PM_OTA_Web_Server.h"  // Pool manager web server management
 
 static const char* TAG = "PM_main";
+
+// Array of I2C Devices
+static byte I2CDevices[128];
 
 // List the type of web server possible
 enum WebServerType { 
@@ -49,6 +53,12 @@ void setup() {
 
   Serial.begin(115200);
   ESP_LOGI(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
+
+// Scan all I2C Devices
+  int I2CDeviceNumber=0;
+  I2CDeviceNumber = PM_I2CScan_Scan(I2CDevices);
+  // Print the I2C Devices
+  PM_I2CScan_Print(I2CDeviceNumber, I2CDevices);
 
   // Connect to the strengthest known wifi network
   while ( ! IsWifiConnected){
