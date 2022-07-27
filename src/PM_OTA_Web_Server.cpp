@@ -21,7 +21,7 @@ AsyncWebServer OTAServer(80);
 void PM_OTA_Web_Server_setup(void) {
 
   OTAServer.on("/", HTTP_GET, PM_OTA_Web_Server_root);
-  OTAServer.on("",  HTTP_GET, PM_OTA_Web_Server_notFound);
+  OTAServer.onNotFound(PM_OTA_Web_Server_notFound);
 
   AsyncElegantOTA.begin(&OTAServer);    // Start ElegantOTA
   OTAServer.begin();
@@ -57,7 +57,7 @@ void PM_OTA_Web_Server_root(AsyncWebServerRequest *request) {
   Response+="<head><title>Hello World!</title></head>";
   Response+="<body>";
   Response+="<h1>Hello World!</h1>";
-  Response+="<p>I am Project: " + Project.Name + "Version: "+ Project.Version + " and I am running for ";
+  Response+="<p>I am Project: " + Project.Name + " Version: "+ Project.Version + " and I am running for ";
   Response+=((int)(millis()/1000));
   Response+=" seconds.</p>";
   Response+="<p>You are connected via <strong>HTTP</strong>.</p>";
