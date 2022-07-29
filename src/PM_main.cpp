@@ -19,6 +19,7 @@
 #include "PM_Constants.h"       // Pool manager constants definitions
 #include "PM_I2CScan.h"         // Pool manager I2C scan tools
 #include "PM_Time.h"            // Pool manager time management
+#include "PM_Time_Mngt.h"       // Pool manager time management
 #include "PM_Wifi_Functions.h"  // Pool manager wifi management
 #include "PM_Web_Server.h"      // Pool manager web server management
 #include "PM_OTA_Web_Server.h"  // Pool manager web server management
@@ -49,7 +50,7 @@ WiFiMulti wifiMulti;
 
 // To manage time from NTP server
 PM_Time time_now;
-time_t  current_time;
+time_t  now;
 
 // swimming pool measures
 PM_SwimmingPoolMeasures     pm_measures     = { 0.0,  0.0,  0.0,   0.0,     0,   450,   750,      0,       0  , 0.0,     0.0,     0,      0,     0.0, false, false, false,   0.0,    0.0  }; 
@@ -63,7 +64,7 @@ PM_SwimmingPoolMeasures_str pm_measures_str = { "00", "00", "00", "0.0", "000", 
 void setup() {
 
   esp_log_level_set("*", ESP_LOG_ERROR);        // set all components to ERROR level
-  esp_log_level_set("PM_*", ESP_LOG_VERBOSE); 
+  esp_log_level_set("PM_*", ESP_LOG_INFO); 
 
   Serial.begin(115200);
   ESP_LOGI(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
@@ -85,7 +86,8 @@ void setup() {
   }
 
   // Initialize time
-  time_now.getCurrentNTPTime();
+  PM_Time_Mngt_initialize_time();
+  //time_now.getCurrentNTPTime();
   
   // start Web Server
   switch(ServerType)
@@ -110,10 +112,9 @@ void loop(void) {
   }
   delay(100);
 
-  //current_time = time_now.getCurrentNTPTime();
-  //ESP_LOGI(TAG, "Get Date and Time from NTP server: %s", time_now.convertTimeToString(current_time).c_str());
-  //lcd.setCursor(0,3);
-  //lcd.print(time_now.convertTimeToString(current_time,"%d/%m/%Y %H:%M:%S").c_str());
+  time(&now);
+  ESP_LOGI(TAG, "Current date and local time is: %s", PM_Time_Mngt_convertTimeToString(now, "%d/%m/%Y %H:%M:%S").c_str());
+  //ESP_LOGI(TAG, "Current date and gmt   time is: %s", PM_Time_Mngt_convertTimeToString(now, "%d/%m/%Y %H:%M:%SZ").c_str());
 
   PM_Display_screen_1(lcd, pm_measures_str);
   delay(5000);
