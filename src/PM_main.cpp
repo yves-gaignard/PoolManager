@@ -48,9 +48,17 @@ boolean IsWifiConnected    = false;
 // To manage wifi between multiple networks
 WiFiMulti wifiMulti;
 
-// To manage time from NTP server
-PM_Time time_now;
+// To manage time
 time_t  now;
+
+// Display LCD parameter
+time_t  PM_Display_Activation_Start=0;            // time of the last LCD activation
+time_t  PM_Display_Max_Time_Without_Activity=300; // duration of displaying information without any user interaction
+int     PM_Display_Current_Screen_Index=1;        // Current displayed screen index 
+int     PM_Display_Screen_Number=2;               // Total screen number
+boolean PM_Display_Activation_Request=true;       // Request to activate the display
+boolean PM_Display_Status=true;                   // Status of the current 
+
 
 // swimming pool measures
 PM_SwimmingPoolMeasures     pm_measures     = { 0.0,  0.0,  0.0,   0.0,     0,   450,   750,      0,       0  , 0.0,     0.0,     0,      0,     0.0, false, false, false,   0.0,    0.0  }; 
@@ -88,6 +96,11 @@ void setup() {
   // Initialize time
   PM_Time_Mngt_initialize_time();
   //time_now.getCurrentNTPTime();
+  time(&now);
+  ESP_LOGI(TAG, "Current date and local time is: %s", PM_Time_Mngt_convertTimeToString(now, "%d/%m/%Y %H:%M:%S").c_str());
+  
+  // Start of diaplaying information
+  PM_Display_Activation_Start=now;
   
   // start Web Server
   switch(ServerType)
@@ -116,17 +129,41 @@ void loop(void) {
   ESP_LOGI(TAG, "Current date and local time is: %s", PM_Time_Mngt_convertTimeToString(now, "%d/%m/%Y %H:%M:%S").c_str());
   //ESP_LOGI(TAG, "Current date and gmt   time is: %s", PM_Time_Mngt_convertTimeToString(now, "%d/%m/%Y %H:%M:%SZ").c_str());
 
-  PM_Display_screen_1(lcd, pm_measures_str);
-  delay(5000);
+  if ( (now - PM_Display_Activation_Start) % 10000 < 5000) {
+    PM_Display_Activation_Request = true;
+  }
+  else {
+    PM_Display_Activation_Request = false;
+  }
 
-  PM_Display_noDisplay(lcd);
-  delay(500);
 
+  // if lcd activate button is pressed then print next screen
+  if ( PM_Display_Activation_Request == true) {
+    if (PM_Display_Status == false) {
+      // the LCD was shutdowned. We just display it again
+      PM_Display_Display(lcd);
+    }
+    else {
+      // display the next screen
+      int screen_index= (PM_Display_Current_Screen_Index+1)%PM_Display_Screen_Number;
+      switch (screen_index) {
+        case 0 : PM_Display_screen_0(lcd, pm_measures_str);
+          break;
+        case 1 : PM_Display_screen_1(lcd, pm_measures_str);
+          break;
+        default:
+          ESP_LOGE(TAG, "Unknown screen: %d", screen_index);
+      }
+    }
+    // reset the display duration counter
+    PM_Display_Activation_Start=now;
+  }
 
-  PM_Display_screen_2(lcd, pm_measures_str);
-  delay(5000);
+  // if no_activity at all during MAX_WITHOUT_ACTIVITES then stop the display
+  if (now - PM_Display_Activation_Start >= PM_Display_Max_Time_Without_Activity ) {
+    PM_Display_noDisplay(lcd);
+    PM_Display_Status = false;
+  }
 
-  PM_Display_noDisplay(lcd);
-  delay(500);
 }
 
