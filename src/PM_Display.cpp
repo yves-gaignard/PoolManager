@@ -60,6 +60,7 @@ static byte degree[8] = {
 */
 static boolean PM_Display_State=false;
 static time_t  PM_Display_StartTime=0;
+static time_t  PM_Time_MaxInactitivityTime=5*6;
 static time_t  now;
 struct tm      timeinfo;
 static char    strftime_buf[64];
@@ -86,7 +87,8 @@ void PM_Display_Display(LiquidCrystal_I2C& lcd) {
   lcd.display();
   lcd.backlight();
   PM_Display_State = true;
-  PM_Display_StartTime= time(&now);
+  PM_Display_StartTime= millis();
+  //PM_Display_StartTime= time(&now);
   localtime_r(&now, &timeinfo);
   strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
   ESP_LOGV(TAG, "The current date/time in Paris is: %s", strftime_buf);
@@ -96,6 +98,15 @@ void PM_Display_noDisplay(LiquidCrystal_I2C& lcd) {
   lcd.noDisplay();
   lcd.noBacklight();
   PM_Display_State = false;
+}
+
+// Is time to shutdown the display ?
+void PM_Display_isTimeToNoDisplay(LiquidCrystal_I2C& lcd) {
+  now= millis();
+  if (now-PM_Display_StartTime > PM_Time_MaxInactitivityTime)
+  {
+    PM_Display_noDisplay(lcd);
+  }
 }
 
 /*
@@ -111,7 +122,7 @@ void PM_Display_noDisplay(LiquidCrystal_I2C& lcd) {
    |pH-:12.6l Cl:15.2l  |
    |--------------------|
 */  
-void PM_Display_screen_1(LiquidCrystal_I2C& lcd, PM_SwimmingPoolMeasures_str & measures) {
+void PM_Display_screen_0(LiquidCrystal_I2C& lcd, PM_SwimmingPoolMeasures_str & measures) {
   String DisplayLine;
   if (PM_Display_State == false) {
     lcd.display();
@@ -154,7 +165,7 @@ void PM_Display_screen_1(LiquidCrystal_I2C& lcd, PM_SwimmingPoolMeasures_str & m
    |Max pH-:20l Cl:20l  |
    |--------------------|
 */
-void PM_Display_screen_2(LiquidCrystal_I2C& lcd, PM_SwimmingPoolMeasures_str & measures) {
+void PM_Display_screen_1(LiquidCrystal_I2C& lcd, PM_SwimmingPoolMeasures_str & measures) {
   String DisplayLine;
   if (PM_Display_State == false) {
     lcd.display();
