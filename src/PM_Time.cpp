@@ -4,7 +4,7 @@
   Pool manager time management
 */
 
-// #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
+#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 
 // Standard library definitions
 #include <Arduino.h>
@@ -39,13 +39,11 @@ boolean PM_Time::initTime() {
     _isInitialized = _timeNTPClient.isTimeSet();
     if ( _isInitialized) {
       _initTime=now_epoch;
-      ESP_LOGV(TAG, "Initialize Date and Time from NTP server: %s", time_now.convertTimeToString(current_time).c_str());
-
+      ESP_LOGV(TAG, "Initialize Date and Time from NTP server: %s", time_now.c_str());
     }
     else {
       Serial.println("");
       ESP_LOGE(TAG, "cannot Initialize Date and Time from NTP server");
-
     }
     delay (100);
   }
@@ -66,7 +64,7 @@ time_t PM_Time::getCurrentNTPTime() {
   _lastGetNTPTime = now_epoch;
 
   String time_now = convertTimeToString(now_epoch);
-  ESP_LOGV(TAG, "Get Date and Time from NTP server: %s", time_now.convertTimeToString(current_time).c_str());
+  ESP_LOGV(TAG, "Get Date and Time from NTP server: %s", time_now.c_str());
 
   return _lastGetNTPTime ;
 }
