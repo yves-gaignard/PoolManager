@@ -52,17 +52,34 @@ WiFiMulti wifiMulti;
 time_t  now;
 
 // Display LCD parameter
-time_t  PM_Display_Activation_Start=0;            // time of the last LCD activation
-time_t  PM_Display_Max_Time_Without_Activity=300; // duration of displaying information without any user interaction
+time_t  PM_Display_Max_Time_Without_Activity=20;  // duration of displaying informat
+time_t  PM_Display_Activation_Start=0;            // time of the last LCD activationion without any user interaction
+time_t  PM_Display_Screen_Start=0;                // time of the current screen start
+time_t  PM_Display_Screen_Duration=5;             // time of display for a screen
 int     PM_Display_Current_Screen_Index=1;        // Current displayed screen index 
 int     PM_Display_Screen_Number=2;               // Total screen number
 boolean PM_Display_Activation_Request=true;       // Request to activate the display
-boolean PM_Display_Status=true;                   // Status of the current 
-
 
 // swimming pool measures
 PM_SwimmingPoolMeasures     pm_measures     = { 0.0,  0.0,  0.0,   0.0,     0,   450,   750,      0,       0  , 0.0,     0.0,     0,      0,     0.0, false, false, false,   0.0,    0.0  }; 
 PM_SwimmingPoolMeasures_str pm_measures_str = { "00", "00", "00", "0.0", "000", "450", "750", "00h00", "00h00","00.0", "00.0", "0000", "0000", "0000", "OFF", "OFF", "OFF", "00.0", "00.0" }; 
+
+
+// Tasks declaration
+TaskHandle_t Task_Main_Handle      = NULL;
+TaskHandle_t Task_LCD_Handle       = NULL;
+TaskHandle_t Task_WebServer_Handle = NULL;
+TaskHandle_t Task_GPIO_Handle      = NULL;
+
+void PM_Task_Main      ( void *pvParameters );
+void PM_Task_LCD       ( void *pvParameters );
+void PM_Task_WebServer ( void *pvParameters );
+void PM_Task_GPIO      ( void *pvParameters );
+
+// Button declarations
+boolean PM_DisplayButton_State = false;    // Current State
+int     PM_DisplayButton_LastPressed = 0;  // last time it was pressed in millis
+void IRAM_ATTR PM_DisplayButton_ISR();     // Interuption function
 
 // =================================================================================================
 //
@@ -108,62 +125,176 @@ void setup() {
     case OTAWebServer: PM_OTA_Web_Server_setup();   break;
     case WebServer:    PM_Web_Server_setup(); break;
   }
-  delay(100);
-}
 
+  PM_Display_screen_0(lcd, pm_measures_str);
+  PM_Display_Screen_Start=now;
+
+  // Create tasks
+  //           Function            Name            Stack  Param PRIO  Handle
+  //xTaskCreatePinnedToCore(PM_Task_Main,      "Task_Main",      10000, NULL, 10, &Task_Main_Handle,      0);
+  xTaskCreatePinnedToCore(PM_Task_GPIO,      "Task_GPIO",      10000, NULL,  8, &Task_GPIO_Handle,      0);
+  xTaskCreatePinnedToCore(PM_Task_LCD,       "Task_LCD",       10000, NULL,  6, &Task_LCD_Handle,       1);
+  xTaskCreatePinnedToCore(PM_Task_WebServer, "Task_WebServer", 10000, NULL,  9, &Task_WebServer_Handle, 1);
+
+  pinMode(18, INPUT_PULLUP);
+  attachInterrupt(18, PM_DisplayButton_ISR, FALLING);
+
+  // Infinite loop to never go to main loop. Everything is treated in a task 
+  for( ;; ) {}
+}
 // =================================================================================================
-//
 //                                        LOOP OF POOL MANAGER
-//
 // =================================================================================================
 void loop(void) {
-  // start Web Server
-  switch(ServerType)
-  {
-    case OTAWebServer: PM_OTA_Web_Server_loop();   break;
-    case WebServer:    PM_Web_Server_loop(); break;
+   // Nothing here
+}
+
+// =================================================================================================
+//                                        MAIN TASK OF POOL MANAGER
+// =================================================================================================
+void PM_Task_Main      ( void *pvParameters ) {
+  //const char *pcTaskName = "Task_Main";
+  UBaseType_t uxPriority;
+  uxPriority = uxTaskPriorityGet( NULL );
+  tm * time_tm;
+  char timestamp_str[20]; 
+  for( ;; ) {
+    time(&now);
+    time_tm = localtime(&now);
+	  strftime(timestamp_str, sizeof(timestamp_str), local_time_format, time_tm);
+    ESP_LOGD(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
+
+    vTaskDelay( pdMS_TO_TICKS( 50000 ) );
   }
-  delay(100);
+}
+// =================================================================================================
+//                                     LCD MANAGEMENT TASK OF POOL MANAGER
+// =================================================================================================
+void PM_Task_LCD       ( void *pvParameters ) {
+  //const char *pcTaskName = "Task_LCD";
+  UBaseType_t uxPriority;
+  uxPriority = uxTaskPriorityGet( NULL );
+  tm * time_tm;
+  char timestamp_str[20];
+  for( ;; ) {
+    time(&now);
+    time_tm = localtime(&now);
+	  strftime(timestamp_str, sizeof(timestamp_str), local_time_format, time_tm);
+    ESP_LOGD(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
-  time(&now);
-  ESP_LOGI(TAG, "Current date and local time is: %s", PM_Time_Mngt_convertTimeToString(now, "%d/%m/%Y %H:%M:%S").c_str());
-  //ESP_LOGI(TAG, "Current date and gmt   time is: %s", PM_Time_Mngt_convertTimeToString(now, "%d/%m/%Y %H:%M:%SZ").c_str());
-
-  if ( (now - PM_Display_Activation_Start) % 10000 < 5000) {
-    PM_Display_Activation_Request = true;
-  }
-  else {
-    PM_Display_Activation_Request = false;
-  }
-
-
-  // if lcd activate button is pressed then print next screen
-  if ( PM_Display_Activation_Request == true) {
-    if (PM_Display_Status == false) {
-      // the LCD was shutdowned. We just display it again
-      PM_Display_Display(lcd);
+    // if lcd display button is pressed then set the display ON in case of OFF
+    if ( PM_Display_Activation_Request == true) {
+      if (PM_Display_getState(lcd) == false ) {  
+        // the LCD is OFF. We just set it ON again
+        PM_Display_Display(lcd);
+        ESP_LOGV(TAG, "%s : Display is shown",timestamp_str);
+        // reset the display duration counter
+        PM_Display_Activation_Start=now;
+      }
+      PM_Display_Activation_Request=false;
     }
-    else {
-      // display the next screen
-      int screen_index= (PM_Display_Current_Screen_Index+1)%PM_Display_Screen_Number;
-      switch (screen_index) {
-        case 0 : PM_Display_screen_0(lcd, pm_measures_str);
-          break;
-        case 1 : PM_Display_screen_1(lcd, pm_measures_str);
-          break;
-        default:
-          ESP_LOGE(TAG, "Unknown screen: %d", screen_index);
+
+    // If the display is ON
+    if (PM_Display_getState(lcd) == true) {
+      // if the timout of the current screen is reached
+      if ( (now - PM_Display_Screen_Start) >= PM_Display_Screen_Duration) { 
+        // display the next screen
+        int screen_index= (PM_Display_Current_Screen_Index+1)%PM_Display_Screen_Number;
+        ESP_LOGV(TAG, "%s : Screen index %d",timestamp_str, screen_index);
+        switch (screen_index) {
+          case 0 : PM_Display_screen_0(lcd, pm_measures_str);
+              PM_Display_Screen_Start=now;
+              ESP_LOGD(TAG, "%s : Display screen %d",timestamp_str, screen_index);
+            break;
+          case 1 : PM_Display_screen_1(lcd, pm_measures_str);
+              PM_Display_Screen_Start=now;
+              ESP_LOGD(TAG, "%s : Display screen %d",timestamp_str, screen_index);
+            break;
+          default:
+            ESP_LOGE(TAG, "%s : Cannot Display screen %d",timestamp_str, screen_index);
+        }
+        PM_Display_Current_Screen_Index=screen_index;
+      } 
+
+      // if no_activity at all during MAX_WITHOUT_ACTIVITES then stop the display
+      if (now - PM_Display_Activation_Start >= PM_Display_Max_Time_Without_Activity ) {
+        PM_Display_noDisplay(lcd);
+        ESP_LOGD(TAG, "%s : Display is stopped",timestamp_str);
       }
     }
-    // reset the display duration counter
-    PM_Display_Activation_Start=now;
-  }
 
-  // if no_activity at all during MAX_WITHOUT_ACTIVITES then stop the display
-  if (now - PM_Display_Activation_Start >= PM_Display_Max_Time_Without_Activity ) {
-    PM_Display_noDisplay(lcd);
-    PM_Display_Status = false;
+    vTaskDelay( pdMS_TO_TICKS( 2000 ) );
+  }
+}
+// =================================================================================================
+//                                     WEB SERVER MANAGEMENT TASK OF POOL MANAGER
+// =================================================================================================
+void PM_Task_WebServer ( void *pvParameters ) {
+  //const char *pcTaskName = "Task_WebServer";
+  UBaseType_t uxPriority;
+  uxPriority = uxTaskPriorityGet( NULL );
+  tm * time_tm;
+  char timestamp_str[20];
+  for( ;; ) {
+    time(&now);
+    time_tm = localtime(&now);
+	  strftime(timestamp_str, sizeof(timestamp_str), local_time_format, time_tm);
+    ESP_LOGD(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
+
+    // run Web Server
+    switch(ServerType) {
+      case OTAWebServer: PM_OTA_Web_Server_loop();   break;
+      case WebServer:    PM_Web_Server_loop(); break;
+    }
+
+    vTaskDelay( pdMS_TO_TICKS( 1000 ) );
   }
 
 }
+
+// =================================================================================================
+//                                     SENSOR MANAGEMENT TASK OF POOL MANAGER
+// =================================================================================================
+void PM_Task_GPIO      ( void *pvParameters ) {
+  //const char *pcTaskName = "Task_GPIO";
+  UBaseType_t uxPriority;
+  uxPriority = uxTaskPriorityGet( NULL );
+  tm * time_tm;
+  char timestamp_str[20];
+  //boolean GPIO1 = false;
+  for( ;; ) {
+    time(&now);
+    time_tm = localtime(&now);
+	  strftime(timestamp_str, sizeof(timestamp_str), local_time_format, time_tm);
+    ESP_LOGD(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
+
+    /*
+    if ( GPIO1 ) {
+      GPIO1 = false;
+      PM_Display_Activation_Request=false;
+      ESP_LOGD(TAG, "%s : Display activation removed",timestamp_str);
+   }
+    else {
+      GPIO1 = true;
+      PM_Display_Activation_Request = true;
+      ESP_LOGD(TAG, "%s : Display activation requested",timestamp_str);
+    }
+    */
+
+    vTaskDelay( pdMS_TO_TICKS( 25000 ) );
+  }
+
+}
+
+
+// Interruptions
+void IRAM_ATTR PM_DisplayButton_ISR() {
+  if (millis() - PM_DisplayButton_LastPressed > 10) { // Software debouncing button
+    ESP_LOGD(TAG, "Display button pressed");
+    PM_Display_Activation_Request = true;
+    PM_DisplayButton_State = !PM_DisplayButton_State;
+  }
+  PM_DisplayButton_LastPressed = millis();
+}
+
 

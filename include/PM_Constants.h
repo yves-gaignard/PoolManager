@@ -22,6 +22,13 @@ const PM_WifiConfig  WifiConf     {IPAddress(192,168,1,99), IPAddress(192,168,1,
 // Web server listening port
 const int         PM_WebServerPort = 80; 
 
+// GPIO Affectation
+const int PM_DisplayButton_Pin = 18;
+
+// Default date & time format
+const char local_time_format[18] ="%Y-%m-%d %H:%M:%S";
+const char utc_time_format  [19] ="%Y-%m-%dT%H:%M:%SZ";
+
 // welcome phrase send by the Web Server at the initialization
 //const String      WelcomePhrase (String("Project:" + Project.Name + " Version:"+ Project.Version + "\n\nHello ! I am the ESP32 OTA web server serving:" + Project.Name + " project."));
 

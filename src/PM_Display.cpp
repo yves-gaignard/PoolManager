@@ -100,6 +100,11 @@ void PM_Display_noDisplay(LiquidCrystal_I2C& lcd) {
   PM_Display_State = false;
 }
 
+// Get the display status (true = ON, false = OFF)
+boolean PM_Display_getState (LiquidCrystal_I2C& lcd) {
+  return PM_Display_State;
+}
+
 // Is time to shutdown the display ?
 void PM_Display_isTimeToNoDisplay(LiquidCrystal_I2C& lcd) {
   now= millis();
@@ -109,7 +114,7 @@ void PM_Display_isTimeToNoDisplay(LiquidCrystal_I2C& lcd) {
   }
 }
 
-/*
+/*  
    |--------------------|
    |         1         2|
    |12345678901234567890|
@@ -129,9 +134,9 @@ void PM_Display_screen_0(LiquidCrystal_I2C& lcd, PM_SwimmingPoolMeasures_str & m
     lcd.backlight();
     PM_Display_State = true;
   }
+  lcd.setCursor(0,0);
   lcd.clear();
 
-  lcd.setCursor(0,0);
   DisplayLine = "In:"+measures.InAirTemp_str+"  W:"+measures.WaterTemp_str+"  Out:"+measures.OutAirTemp_str;
   lcd.print(DisplayLine.c_str());
   lcd.createChar(1, degree);
@@ -172,9 +177,9 @@ void PM_Display_screen_1(LiquidCrystal_I2C& lcd, PM_SwimmingPoolMeasures_str & m
     lcd.backlight();
     PM_Display_State = true;
   }
-  lcd.clear();
-  
   lcd.setCursor(0,0);
+  lcd.clear();
+
   DisplayLine = "Filter:"+measures.FilterPumpState_str+" P:"+measures.Pressure_str+"hPa";
   lcd.print(DisplayLine.c_str());
   lcd.setCursor(0,1);

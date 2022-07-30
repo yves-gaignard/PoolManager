@@ -19,6 +19,9 @@ void PM_Display_Display(LiquidCrystal_I2C& lcd);
 // Shutdown the display
 void PM_Display_noDisplay(LiquidCrystal_I2C& lcd);
 
+// Get the display state (true = ON, false = OFF)
+boolean PM_Display_getState (LiquidCrystal_I2C& lcd);
+
 // Is time to shutdown the display ?
 void PM_Display_isTimeToNoDisplay(LiquidCrystal_I2C& lcd);
 
