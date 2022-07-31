@@ -32,19 +32,6 @@ static byte degree[8] = {
 };
 
 
-/*
-0s
-   Welcome on Pool Manager Version 1.0.0
-   Copyright Yves Gaignard
-2s
-   Connect to 192.168.1.99
-5s
-   |--------------------|
-   |    SCREEN INIT     |
-   |--------------------|
-10s
-*/
-
 /* Display Initialization procedure
    |--------------------|
    |         1         2|
