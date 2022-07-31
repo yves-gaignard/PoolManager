@@ -1,7 +1,7 @@
 /*
   Copyright 2022 - Yves Gaignard
   
-  Structures and constant definitions of the project
+  Structures definitions of the project
 */
 #ifndef PM_Structures_h
 #define PM_Structures_h
@@ -11,6 +11,7 @@
 struct PM_ProjectStruct {
   String Name;
   String Version;
+  String Author;
 };
 
 

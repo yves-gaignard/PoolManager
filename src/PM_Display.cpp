@@ -14,7 +14,7 @@
 
 // Project definitions
 #include "PM_Structures.h"      // Pool manager structure definitions
-#include "PM_Constants.h"       // Pool manager constants definitions
+#include "PM_Parameters.h"      // Pool manager parameters
 #include "PM_Display.h"         // Pool manager Display tools
 
 static const char* TAG = "PM_Display";
@@ -79,7 +79,7 @@ void PM_Display_init(LiquidCrystal_I2C& lcd){
   lcd.print("Version:");
   lcd.print(Project.Version.c_str());
   lcd.setCursor(0,3);
-  lcd.print("Copyright Y.Gaignard");
+  lcd.print(Project.Author.c_str());
 }
 
 // Activate the display
@@ -91,7 +91,7 @@ void PM_Display_Display(LiquidCrystal_I2C& lcd) {
   //PM_Display_StartTime= time(&now);
   localtime_r(&now, &timeinfo);
   strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
-  ESP_LOGV(TAG, "The current date/time in Paris is: %s", strftime_buf);
+  ESP_LOGV(TAG, "The current local time is: %s", strftime_buf);
 }
 // Shutdown the display
 void PM_Display_noDisplay(LiquidCrystal_I2C& lcd) {

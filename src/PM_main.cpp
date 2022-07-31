@@ -16,7 +16,7 @@
 
 // Project definitions
 #include "PM_Structures.h"      // Pool manager structure definitions
-#include "PM_Constants.h"       // Pool manager constants definitions
+#include "PM_Parameters.h"      // Pool manager parameters
 #include "PM_I2CScan.h"         // Pool manager I2C scan tools
 #include "PM_Time.h"            // Pool manager time management
 #include "PM_Time_Mngt.h"       // Pool manager time management
@@ -88,9 +88,16 @@ void IRAM_ATTR PM_DisplayButton_ISR();     // Interuption function
 // =================================================================================================
 void setup() {
 
-  esp_log_level_set("*", ESP_LOG_ERROR);        // set all components to ERROR level
-  esp_log_level_set("PM_*", ESP_LOG_INFO); 
-
+  // Log level for each part of the project
+  esp_log_level_set("*",                 ESP_LOG_ERROR);        // set all components to ERROR level
+  esp_log_level_set("PM_Display",        ESP_LOG_INFO); 
+  esp_log_level_set("PM_main",           ESP_LOG_INFO); 
+  esp_log_level_set("PM_OTA_Web_Server", ESP_LOG_INFO); 
+  esp_log_level_set("PM_Time_Mngt",      ESP_LOG_INFO); 
+  esp_log_level_set("PM_Time",           ESP_LOG_INFO); 
+  esp_log_level_set("PM_Web_Server",     ESP_LOG_INFO); 
+  esp_log_level_set("PM_Wifi_Functions", ESP_LOG_INFO); 
+  
   Serial.begin(115200);
   ESP_LOGI(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
   
@@ -130,27 +137,28 @@ void setup() {
   PM_Display_Screen_Start=now;
 
   // Create tasks
-  //           Function            Name            Stack  Param PRIO  Handle
+  //                          Function           Name          Stack  Param PRIO  Handle                core
   //xTaskCreatePinnedToCore(PM_Task_Main,      "Task_Main",      10000, NULL, 10, &Task_Main_Handle,      0);
   xTaskCreatePinnedToCore(PM_Task_GPIO,      "Task_GPIO",      10000, NULL,  8, &Task_GPIO_Handle,      0);
   xTaskCreatePinnedToCore(PM_Task_LCD,       "Task_LCD",       10000, NULL,  6, &Task_LCD_Handle,       1);
   xTaskCreatePinnedToCore(PM_Task_WebServer, "Task_WebServer", 10000, NULL,  9, &Task_WebServer_Handle, 1);
 
-  pinMode(18, INPUT_PULLUP);
-  attachInterrupt(18, PM_DisplayButton_ISR, FALLING);
+  // Attribute the GPIOs
+  pinMode(PM_DisplayButton_Pin, INPUT_PULLUP);
+  attachInterrupt(PM_DisplayButton_Pin, PM_DisplayButton_ISR, FALLING);
 
   // Infinite loop to never go to main loop. Everything is treated in a task 
   for( ;; ) {}
 }
 // =================================================================================================
-//                                        LOOP OF POOL MANAGER
+//                                   LOOP OF POOL MANAGER
 // =================================================================================================
 void loop(void) {
    // Nothing here
 }
 
 // =================================================================================================
-//                                        MAIN TASK OF POOL MANAGER
+//                                  MAIN TASK OF POOL MANAGER
 // =================================================================================================
 void PM_Task_Main      ( void *pvParameters ) {
   //const char *pcTaskName = "Task_Main";
@@ -161,14 +169,14 @@ void PM_Task_Main      ( void *pvParameters ) {
   for( ;; ) {
     time(&now);
     time_tm = localtime(&now);
-	  strftime(timestamp_str, sizeof(timestamp_str), local_time_format, time_tm);
+	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
     ESP_LOGD(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
     vTaskDelay( pdMS_TO_TICKS( 50000 ) );
   }
 }
 // =================================================================================================
-//                                     LCD MANAGEMENT TASK OF POOL MANAGER
+//                               LCD MANAGEMENT TASK OF POOL MANAGER
 // =================================================================================================
 void PM_Task_LCD       ( void *pvParameters ) {
   //const char *pcTaskName = "Task_LCD";
@@ -179,7 +187,7 @@ void PM_Task_LCD       ( void *pvParameters ) {
   for( ;; ) {
     time(&now);
     time_tm = localtime(&now);
-	  strftime(timestamp_str, sizeof(timestamp_str), local_time_format, time_tm);
+	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
     ESP_LOGD(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
     // if lcd display button is pressed then set the display ON in case of OFF
@@ -222,7 +230,6 @@ void PM_Task_LCD       ( void *pvParameters ) {
         ESP_LOGD(TAG, "%s : Display is stopped",timestamp_str);
       }
     }
-
     vTaskDelay( pdMS_TO_TICKS( 2000 ) );
   }
 }
@@ -238,7 +245,7 @@ void PM_Task_WebServer ( void *pvParameters ) {
   for( ;; ) {
     time(&now);
     time_tm = localtime(&now);
-	  strftime(timestamp_str, sizeof(timestamp_str), local_time_format, time_tm);
+	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
     ESP_LOGD(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
     // run Web Server
@@ -249,11 +256,9 @@ void PM_Task_WebServer ( void *pvParameters ) {
 
     vTaskDelay( pdMS_TO_TICKS( 1000 ) );
   }
-
 }
-
 // =================================================================================================
-//                                     SENSOR MANAGEMENT TASK OF POOL MANAGER
+//                                SENSOR MANAGEMENT TASK OF POOL MANAGER
 // =================================================================================================
 void PM_Task_GPIO      ( void *pvParameters ) {
   //const char *pcTaskName = "Task_GPIO";
@@ -261,35 +266,23 @@ void PM_Task_GPIO      ( void *pvParameters ) {
   uxPriority = uxTaskPriorityGet( NULL );
   tm * time_tm;
   char timestamp_str[20];
-  //boolean GPIO1 = false;
   for( ;; ) {
     time(&now);
     time_tm = localtime(&now);
-	  strftime(timestamp_str, sizeof(timestamp_str), local_time_format, time_tm);
+	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
     ESP_LOGD(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
-    /*
-    if ( GPIO1 ) {
-      GPIO1 = false;
-      PM_Display_Activation_Request=false;
-      ESP_LOGD(TAG, "%s : Display activation removed",timestamp_str);
-   }
-    else {
-      GPIO1 = true;
-      PM_Display_Activation_Request = true;
-      ESP_LOGD(TAG, "%s : Display activation requested",timestamp_str);
-    }
-    */
 
     vTaskDelay( pdMS_TO_TICKS( 25000 ) );
   }
 
 }
 
-
-// Interruptions
+// =================================================================================================
+//                              DISPLAY BUTTON INTERRUPTION MANAGEMENT
+// =================================================================================================
 void IRAM_ATTR PM_DisplayButton_ISR() {
-  if (millis() - PM_DisplayButton_LastPressed > 10) { // Software debouncing button
+  if (millis() - PM_DisplayButton_LastPressed > 100) { // Software debouncing button
     ESP_LOGD(TAG, "Display button pressed");
     PM_Display_Activation_Request = true;
     PM_DisplayButton_State = !PM_DisplayButton_State;
