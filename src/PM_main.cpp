@@ -15,17 +15,22 @@
 #include <ESPAsyncWebServer.h>  // Library for Web Server Management 
 
 // Project definitions
-#include "PM_Structures.h"      // Pool manager structure definitions
-#include "PM_Parameters.h"      // Pool manager parameters
-#include "PM_I2CScan.h"         // Pool manager I2C scan tools
-#include "PM_Time.h"            // Pool manager time management
-#include "PM_Time_Mngt.h"       // Pool manager time management
-#include "PM_Wifi_Functions.h"  // Pool manager wifi management
-#include "PM_Web_Server.h"      // Pool manager web server management
-#include "PM_OTA_Web_Server.h"  // Pool manager web server management
-#include "PM_Display.h"         // Pool manager display device management
+#include "PM_Structures.h"         // Pool manager structure definitions
+#include "PM_Parameters.h"         // Pool manager parameters
+#include "PM_I2CScan.h"            // Pool manager I2C scan tools
+#include "PM_Time.h"               // Pool manager time management
+#include "PM_Time_Mngt.h"          // Pool manager time management
+#include "PM_Wifi_Functions.h"     // Pool manager wifi management
+#include "PM_Web_Server.h"         // Pool manager web server management
+#include "PM_OTA_Web_Server.h"     // Pool manager web server management
+#include "PM_Display.h"            // Pool manager display device management
+#include "PM_Pool_Configuration.h" // Pool manager configuration parameters
+#include "PM_Error.h"              // Pool manager error management
 
 static const char* TAG = "PM_main";
+
+// Intantiate the Pool Manager configuration
+static PM_Pool_Configuration Pool_Configuration;
 
 // Array of I2C Devices
 static byte I2CDevices[128];
@@ -36,14 +41,14 @@ enum WebServerType {
   WebServer       // HTTP and HTTPS web servers
 };
 
-// Define LCD display
-LiquidCrystal_I2C lcd(0x27, 20, 4); 
+// Instantiate LCD display
+LiquidCrystal_I2C lcd(PM_LCD_Device_Addr, PM_LCD_Cols, PM_LCD_Rows); 
 
 // Select the type of web server to instantiate
 WebServerType ServerType = OTAWebServer;
 
 // To manage the connection on Wifi
-boolean IsWifiConnected    = false;
+boolean IsWifiConnected   = false;
 
 // To manage wifi between multiple networks
 WiFiMulti wifiMulti;
@@ -133,6 +138,30 @@ void setup() {
     case WebServer:    PM_Web_Server_setup(); break;
   }
 
+  // Verify the configuration of pool manager
+  PM_Error Error = Pool_Configuration.CheckFiltrationTimeAbaqus();
+  int ErrorNumber = Error.getErrorNumber();
+  if (ErrorNumber != 0) {
+    ESP_LOGE(TAG, "The Filtration Time Abaqus does not respect the rules. Please check it !");
+    std::string Display_ErrorNumber = Error.getErrorNumberStr();
+    std::string Display_Message = Error.getDisplayMsg();
+    ESP_LOGE(TAG, "%s",Display_Message.c_str());
+    PM_Display_screen_error_msg(lcd, Display_ErrorNumber, Display_Message, 60);
+    for ( ;; ) {} //infinite loop as the configuration could not be wrong
+  }
+
+  Error = Pool_Configuration.CheckFiltrationPeriodAbaqus();
+  if (Error.getErrorNumber() != 0) {
+    ESP_LOGE(TAG, "The Filtration Period Abaqus does not respect the rules. Please check it !");
+    std::string Display_ErrorNumber = Error.getErrorNumberStr();
+    std::string Display_Message = Error.getDisplayMsg();
+    ESP_LOGE(TAG, "%s",Display_Message.c_str());
+    PM_Display_screen_error_msg(lcd, Display_ErrorNumber, Display_Message, 60);
+    for ( ;; ) {} //infinite loop as the configuration could not be wrong
+  }
+  
+
+  // Display the first screen
   PM_Display_screen_0(lcd, pm_measures_str);
   PM_Display_Screen_Start=now;
 

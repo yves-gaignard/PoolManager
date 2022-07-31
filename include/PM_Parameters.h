@@ -10,9 +10,19 @@
 #include <PM_Structures.h>
 #include <PM_Secrets.h>
 
-// Project name and version
-// -------------------------
+// Project name, version and author
+// ---------------------------------
 const PM_ProjectStruct Project {"Pool Manager", "1.0.0", "Yves Gaignard"};
+
+// =========================================================================================================
+//                                       Hardware parameters
+// =========================================================================================================
+
+// LCD parameters
+// ------------------
+const uint8_t PM_LCD_Device_Addr = 0x27;
+const uint8_t PM_LCD_Cols        = 20;
+const uint8_t PM_LCD_Rows        =  4;
 
 // list of your Wifi networks with their credentials
 // --------------------------------------------------
@@ -37,6 +47,10 @@ const char PM_UTCTimeFormat[19]   ="%Y-%m-%dT%H:%M:%SZ";
 // ---------------------------
 // See Timezone definition here : https://sites.google.com/a/usapiens.com/opnode/time-zones
 const char PM_TimeZone[60] = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; // Paris, France
+
+// =========================================================================================================
+//                                          Hardware parameters
+// =========================================================================================================
 
 // Configuration of the GPIOs
 // ---------------------------

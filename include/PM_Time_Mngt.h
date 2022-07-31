@@ -16,6 +16,6 @@ void PM_Time_Mngt_initialize_time(void);
 void PM_Time_Mngt_obtain_time(void);
 void PM_Time_Mngt_initialize_sntp(void);
 void PM_Time_Mngt_time_sync_notification_cb(struct timeval *tv);
-String PM_Time_Mngt_convertTimeToString(time_t time_in, const char* string_format );
+std::string PM_Time_Mngt_convertTimeToString(time_t time_in, const char* string_format );
 
 #endif

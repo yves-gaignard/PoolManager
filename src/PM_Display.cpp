@@ -115,8 +115,9 @@ void PM_Display_isTimeToNoDisplay(LiquidCrystal_I2C& lcd) {
    |--------------------|
 */  
 void PM_Display_screen_0(LiquidCrystal_I2C& lcd, PM_SwimmingPoolMeasures_str & measures) {
-  String DisplayLine;
+  std::string DisplayLine;
   if (PM_Display_State == false) {
+    lcd.noAutoscroll();
     lcd.display();
     lcd.backlight();
     PM_Display_State = true;
@@ -158,8 +159,9 @@ void PM_Display_screen_0(LiquidCrystal_I2C& lcd, PM_SwimmingPoolMeasures_str & m
    |--------------------|
 */
 void PM_Display_screen_1(LiquidCrystal_I2C& lcd, PM_SwimmingPoolMeasures_str & measures) {
-  String DisplayLine;
+  std::string DisplayLine;
   if (PM_Display_State == false) {
+    lcd.noAutoscroll();
     lcd.display();
     lcd.backlight();
     PM_Display_State = true;
@@ -180,27 +182,45 @@ void PM_Display_screen_1(LiquidCrystal_I2C& lcd, PM_SwimmingPoolMeasures_str & m
   lcd.print(DisplayLine.c_str());
 }
 
-/*
+// Display an error. The error number is display on (0,0) and the message on (0,1) during DisplayTime seconds
+void PM_Display_screen_error_msg(LiquidCrystal_I2C& lcd, std::string& ErrorNumber, std::string& ErrorMsg, int DisplayTime) {
+  if (PM_Display_State == false) {
+    lcd.noAutoscroll();
+    lcd.display();
+    lcd.backlight();
+    PM_Display_State = true;
+  }
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Error:");
+  lcd.setCursor(7,0);
+  lcd.print(ErrorNumber.c_str());
+  lcd.setCursor(0,1);
+  PM_Display_scrollMessage(lcd, 1, ErrorMsg, DisplayTime);
+}
 
-struct PM_SwimmingPoolMeasures_str {
-  String  InAirTemp_str;                  // Inside air temperature in °C (string format: 28.2 °)
-  String  WaterTemp_str;                  // Water temperature in °C of the swimming pool (string format 25.2 °)
-  String  OutAirTemp_str;                 // Outside air temperature in °C (string format 15.4 °)
-  String  pH_str;                         // pH unit (string format 7.2)
-  String  Chlorine_str;                   // redox measure unit: mV (string format 3000 mV)
-  String  ChlorineMin_str;                // Minimum acceptable redox measure unit: mV (string format 3000 mV)
-  String  ChlorineMax_str;                // Maximum acceptable redox measure unit: mV (string format 3000 mV)
-  String  DayFilterTime_str;              // Filter Time since the begin of the day (string format 15h26)
-  String  MaxDayFilterTime_str;           // Maximum Filter Time since the begin of the day (string format 16h)
-  String  pHMinusVolume_str;              // Volume of pH Minus liquid since the last complete fill of the container (string format 20.4 l)
-  String  ChlorineVolume_str;             // Volume of liquid chlorine since the last complete fill of the container (string format 12.9 l)
-  String  ConsumedInstantaneousPower_str; // Instantaneous Power in Watt consumed by the filtration pump (string format 2514 W)
-  String  DayConsumedPower_str;           // Power in Watt consumed by the filtration pump since the begin of the day (string format 25 kWh)
-  String  Pressure_str;                   // Pressure in the filtering device (unit hPa) (string format)
-  String  FilterPumpState_str;            // State of the filtering pump (ON  , OFF)
-  String  pHMinusPumpState_str;           // State of the pH- pump (ON, OFF)
-  String  ChlorinePumpState;              // State of the pH- pump (ON, OFF)
-  String  pHMinusMaxVolume_str;           // Volume max of the pH- container (string format 20.0 l)
-  String  ChlorineMaxVolume_str;          // Volume max of the Chlorine container (string format 20.0 l)
-};
-*/
+void PM_Display_scrollMessage(LiquidCrystal_I2C& lcd, int row, std::string message, int displayTime) {
+  int time_to_display = displayTime * 1000;
+  message+=" ";
+  int len = message.length();
+  std::string padding="";
+  for (int i=0; i < PM_LCD_Cols; i++) {
+    message = " " + message;
+    padding += " "; 
+  } 
+  message+=padding;
+  std::string sub_message;
+  time_t start =millis();
+  int j = start;
+  while (j<start+time_to_display) {
+    for (int position = 0; position < len+PM_LCD_Cols; position++) {
+      lcd.setCursor(0, row);
+      sub_message=message.substr(position, PM_LCD_Cols);
+      //int len_sub = sub_message.length();
+      //ESP_LOGV(TAG, "%d - %s",len_sub, sub_message.c_str());
+      lcd.print(sub_message.c_str());
+      delay(300);
+    }
+    j=millis();
+  }
+}
