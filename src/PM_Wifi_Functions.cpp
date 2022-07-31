@@ -12,7 +12,7 @@
 
 #include "PM_Wifi_Functions.h"
 #include "PM_Structures.h"
-#include "PM_Constants.h"
+#include "PM_Parameters.h"      // Pool manager parameters
 
 static const char* TAG = "PM_Wifi_Functions";
 

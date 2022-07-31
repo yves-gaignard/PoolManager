@@ -10,7 +10,7 @@
 #include <Arduino.h>
 #include <AsyncElegantOTA.h>
 
-#include "PM_Constants.h"
+#include "PM_Parameters.h"      // Pool manager parameters
 #include "PM_OTA_Web_Server.h"
 
 static const char* TAG = "PM_OTA_Web_Server";

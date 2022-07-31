@@ -9,9 +9,6 @@
 //#include <WiFi.h>
 #include <WiFiMulti.h>
 
-#include <PM_Structures.h>
-#include <PM_Constants.h>
-
 // ===================================================================================================
 // WifiDetectAndConnect : Function to detect the different wifi and to connect to the strengthest
 // ===================================================================================================
