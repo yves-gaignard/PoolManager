@@ -57,7 +57,7 @@ void PM_OTA_Web_Server_root(AsyncWebServerRequest *request) {
   Response+="<head><title>Hello World!</title></head>";
   Response+="<body>";
   Response+="<h1>Hello World!</h1>";
-  Response+="<p>I am Project: " + Project.Name + " Version: "+ Project.Version + " and I am running for ";
+  Response+="<p>I am Project: " + String(Project.Name.c_str()) + " Version: "+ String(Project.Version.c_str()) + " and I am running for ";
   Response+=((int)(millis()/1000));
   Response+=" seconds.</p>";
   Response+="<p>You are connected via <strong>HTTP</strong>.</p>";
