@@ -17,6 +17,7 @@
 
 #include <Arduino.h>
 #include <PM_Time_Mngt.h>
+#include <PM_Parameters.h>
 #include <string.h>
 #include <time.h>
 #include <sys/time.h>
@@ -103,8 +104,8 @@ void PM_Time_Mngt_initialize_time(void)
 
     char strftime_buf[64];
 
-    // Set timezone to Central Eurepean Time and print local time
-    setenv("TZ", "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00", 1);
+    // Set timezone to the zone provided in the parameter file to have the real local time
+    setenv("TZ", PM_TimeZone, 1);
     tzset();
     localtime_r(&now, &timeinfo);
     strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);

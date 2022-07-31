@@ -36,6 +36,7 @@ esphome/secrets.yaml
 esphome/**/
 
 # Custom component I don't want to track here
+include/PM_Secrets.h
 
 # OS files
 
