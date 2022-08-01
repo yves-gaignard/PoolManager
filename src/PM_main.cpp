@@ -266,6 +266,7 @@ void PM_Task_LCD       ( void *pvParameters ) {
       // if no_activity at all during MAX_WITHOUT_ACTIVITES then stop the display
       if (now - PM_Display_Activation_Start >= PM_Display_Max_Time_Without_Activity ) {
         lcd.noDisplay();
+        lcd.noBacklight();
         ESP_LOGD(TAG, "%s : Display is stopped",timestamp_str);
       }
     }
@@ -347,19 +348,18 @@ void IRAM_ATTR PM_DisplayButton_ISR() {
    |--------------------|
 */ 
 void PM_Display_init    () {
-  ESP_LOGD(TAG, "Begin PM_Display_init");
   lcd.init();
   lcd.clear();
   lcd.display();
   lcd.backlight();
-  
-  screen[0] = Project.Name;
-  screen[1] = "Version: " + Project.Name;
-  screen[2] = "";
-  screen[3] = Project.Author;
+
+  screen.clear();
+  screen.push_back(Project.Name);
+  screen.push_back("Version: " + Project.Version);
+  screen.push_back("");
+  screen.push_back(Project.Author);
 
   lcd.printScreen(screen);
-  ESP_LOGD(TAG, "End PM_Display_init");
 }
 
 /*  

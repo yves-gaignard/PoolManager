@@ -23,10 +23,10 @@ PM_LCD::~PM_LCD(){
 }
 
 void PM_LCD::_initLCD (uint8_t Device_Addr, uint8_t Cols, uint8_t Rows) {
-  ESP_LOGD(TAG, "Starting _initLCD");
-
   _lcd = new LiquidCrystal_I2C(Device_Addr, Cols, Rows);
-
+  _deviceAddress= Device_Addr;
+  _columnNumber=Cols;
+  _rowNumber=Rows;
   _padding = "";
   for (int i=0; i < _columnNumber; i++) {
     _padding+=" ";
@@ -48,12 +48,13 @@ boolean             PM_LCD::getDisplayState() {
     
 void PM_LCD::init() {
   ESP_LOGD(TAG, "before init()");
-  delay (1000);
   _lcd->init();
   ESP_LOGD(TAG, "after  init()");
 }
 void PM_LCD::clear() {
+  ESP_LOGD(TAG, "before clear()");
   _lcd->clear();
+  ESP_LOGD(TAG, "after  clear()");
 }
 void PM_LCD::home() {
   _lcd->home();
@@ -68,35 +69,51 @@ void PM_LCD::noDisplay() {
 }
 void PM_LCD::blink() {
   _lcd->blink();
+  _blink=true;
 }
 void PM_LCD::noBlink() {
   _lcd->noBlink();
+  _blink=false;
 }
 void PM_LCD::cursor() {
   _lcd->cursor();
+  _cursor=true;
 }
 void PM_LCD::noCursor() {
   _lcd->noCursor();
+  _cursor=false;
 }
 void PM_LCD::noBacklight() {
   _lcd->noBacklight();
+  _backlight=false;
 }
 void PM_LCD::backlight() {
   _lcd->backlight();
+  _backlight=true;
 }
 
 void PM_LCD::printScreen       (std::vector<std::string>& screen) {
+  ESP_LOGV(TAG, "before printScreen->clear()");
   this->clear();
+  ESP_LOGV(TAG, "before printScreen->display()");
   this->display();
+  ESP_LOGV(TAG, "before printScreen->backlight()");
   this->backlight();
+  ESP_LOGV(TAG, "before printScreen->home()");
   this->home();
+  ESP_LOGV(TAG, "before printScreen->noBlink()");
   this->noBlink();
+  ESP_LOGV(TAG, "before printScreen->noCursor()");
   this->noCursor();
   std::string subLine;
   for (int row =0; row < _rowNumber; row++) {
     subLine = std::string(screen[row]+_padding).substr(0, _columnNumber);
-    _lcd->printf(subLine.c_str());
+    ESP_LOGV(TAG, "before setcursor(0,%d)",row);
+    _lcd->setCursor(0,row);
+    ESP_LOGV(TAG, "before printf(%s)",subLine.c_str());
+    _lcd->print(subLine.c_str());
   }
+  ESP_LOGV(TAG, "end of printScreen");
 }
 void PM_LCD::printScrollScreen (std::vector<std::string>& screen) {
   
