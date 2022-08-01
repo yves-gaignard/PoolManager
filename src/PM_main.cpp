@@ -23,7 +23,7 @@
 #include "PM_Wifi_Functions.h"     // Pool manager wifi management
 #include "PM_Web_Server.h"         // Pool manager web server management
 #include "PM_OTA_Web_Server.h"     // Pool manager web server management
-#include "PM_Display.h"            // Pool manager display device management
+#include "PM_LCD.h"                // Pool manager display device management
 #include "PM_Pool_Configuration.h" // Pool manager configuration parameters
 #include "PM_Error.h"              // Pool manager error management
 
@@ -41,8 +41,9 @@ enum WebServerType {
   WebServer       // HTTP and HTTPS web servers
 };
 
-// Instantiate LCD display
-LiquidCrystal_I2C lcd(PM_LCD_Device_Addr, PM_LCD_Cols, PM_LCD_Rows); 
+// Instantiate LCD display and a screen template
+PM_LCD lcd(PM_LCD_Device_Addr, PM_LCD_Cols, PM_LCD_Rows);
+std::vector<std::string> screen;
 
 // Select the type of web server to instantiate
 WebServerType ServerType = OTAWebServer;
@@ -81,6 +82,11 @@ void PM_Task_LCD       ( void *pvParameters );
 void PM_Task_WebServer ( void *pvParameters );
 void PM_Task_GPIO      ( void *pvParameters );
 
+// function declarations
+void PM_Display_init    ();
+void PM_Display_screen_0(PM_SwimmingPoolMeasures_str & measures);
+void PM_Display_screen_1(PM_SwimmingPoolMeasures_str & measures);
+
 // Button declarations
 boolean PM_DisplayButton_State = false;    // Current State
 int     PM_DisplayButton_LastPressed = 0;  // last time it was pressed in millis
@@ -107,8 +113,8 @@ void setup() {
   ESP_LOGI(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
   
   //Init LCD
-  PM_Display_init(lcd);
-
+  PM_Display_init();
+  
   // Scan all I2C Devices
   int I2CDeviceNumber=0;
   I2CDeviceNumber = PM_I2CScan_Scan(I2CDevices);
@@ -143,26 +149,30 @@ void setup() {
   int ErrorNumber = Error.getErrorNumber();
   if (ErrorNumber != 0) {
     ESP_LOGE(TAG, "The Filtration Time Abaqus does not respect the rules. Please check it !");
-    std::string Display_ErrorNumber = Error.getErrorNumberStr();
-    std::string Display_Message = Error.getDisplayMsg();
-    ESP_LOGE(TAG, "%s",Display_Message.c_str());
-    PM_Display_screen_error_msg(lcd, Display_ErrorNumber, Display_Message, 60);
+    std::string Display_ErrorNumber = "Error: "+Error.getErrorNumberStr();
+    std::string Display_ErrorMessage = Error.getDisplayMsg();
+    ESP_LOGE(TAG, "%s",Display_ErrorMessage.c_str());
+    lcd.clear();
+    lcd.printLine(0, Display_ErrorNumber);
+    lcd.printScrollLine(1, Display_ErrorMessage, 60);
     for ( ;; ) {} //infinite loop as the configuration could not be wrong
   }
 
   Error = Pool_Configuration.CheckFiltrationPeriodAbaqus();
   if (Error.getErrorNumber() != 0) {
     ESP_LOGE(TAG, "The Filtration Period Abaqus does not respect the rules. Please check it !");
-    std::string Display_ErrorNumber = Error.getErrorNumberStr();
-    std::string Display_Message = Error.getDisplayMsg();
-    ESP_LOGE(TAG, "%s",Display_Message.c_str());
-    PM_Display_screen_error_msg(lcd, Display_ErrorNumber, Display_Message, 60);
+    std::string Display_ErrorNumber = "Error: " + Error.getErrorNumberStr();
+    std::string Display_ErrorMessage = Error.getDisplayMsg();
+    ESP_LOGE(TAG, "%s",Display_ErrorMessage.c_str());
+    lcd.clear();
+    lcd.printLine(0, Display_ErrorNumber);
+    lcd.printScrollLine(1, Display_ErrorMessage, 60);
     for ( ;; ) {} //infinite loop as the configuration could not be wrong
   }
   
 
   // Display the first screen
-  PM_Display_screen_0(lcd, pm_measures_str);
+  PM_Display_screen_0(pm_measures_str);
   PM_Display_Screen_Start=now;
 
   // Create tasks
@@ -221,9 +231,9 @@ void PM_Task_LCD       ( void *pvParameters ) {
 
     // if lcd display button is pressed then set the display ON in case of OFF
     if ( PM_Display_Activation_Request == true) {
-      if (PM_Display_getState(lcd) == false ) {  
+      if (lcd.getDisplayState() == false ) {  
         // the LCD is OFF. We just set it ON again
-        PM_Display_Display(lcd);
+        lcd.display();
         ESP_LOGV(TAG, "%s : Display is shown",timestamp_str);
         // reset the display duration counter
         PM_Display_Activation_Start=now;
@@ -232,18 +242,18 @@ void PM_Task_LCD       ( void *pvParameters ) {
     }
 
     // If the display is ON
-    if (PM_Display_getState(lcd) == true) {
+    if (lcd.getDisplayState() == true) {
       // if the timout of the current screen is reached
       if ( (now - PM_Display_Screen_Start) >= PM_Display_Screen_Duration) { 
         // display the next screen
         int screen_index= (PM_Display_Current_Screen_Index+1)%PM_Display_Screen_Number;
         ESP_LOGV(TAG, "%s : Screen index %d",timestamp_str, screen_index);
         switch (screen_index) {
-          case 0 : PM_Display_screen_0(lcd, pm_measures_str);
+          case 0 : PM_Display_screen_0(pm_measures_str);
               PM_Display_Screen_Start=now;
               ESP_LOGD(TAG, "%s : Display screen %d",timestamp_str, screen_index);
             break;
-          case 1 : PM_Display_screen_1(lcd, pm_measures_str);
+          case 1 : PM_Display_screen_1(pm_measures_str);
               PM_Display_Screen_Start=now;
               ESP_LOGD(TAG, "%s : Display screen %d",timestamp_str, screen_index);
             break;
@@ -255,7 +265,7 @@ void PM_Task_LCD       ( void *pvParameters ) {
 
       // if no_activity at all during MAX_WITHOUT_ACTIVITES then stop the display
       if (now - PM_Display_Activation_Start >= PM_Display_Max_Time_Without_Activity ) {
-        PM_Display_noDisplay(lcd);
+        lcd.noDisplay();
         ESP_LOGD(TAG, "%s : Display is stopped",timestamp_str);
       }
     }
@@ -320,3 +330,90 @@ void IRAM_ATTR PM_DisplayButton_ISR() {
 }
 
 
+// =================================================================================================
+//                              SCREEN DEFINITIONS
+// =================================================================================================
+/*  
+   |--------------------|
+   |         1         2|
+   |12345678901234567890|
+   |--------------------|
+   |     SCREEN INIT    |
+   |--------------------|
+   |Pool Manager        |
+   |Version: 1.0.0      |
+   |                    | 
+   |Yves Gaignard       |
+   |--------------------|
+*/ 
+void PM_Display_init    () {
+  ESP_LOGD(TAG, "Begin PM_Display_init");
+  lcd.init();
+  lcd.clear();
+  lcd.display();
+  lcd.backlight();
+  
+  screen[0] = Project.Name;
+  screen[1] = "Version: " + Project.Name;
+  screen[2] = "";
+  screen[3] = Project.Author;
+
+  lcd.printScreen(screen);
+  ESP_LOGD(TAG, "End PM_Display_init");
+}
+
+/*  
+   |--------------------|
+   |         1         2|
+   |12345678901234567890|
+   |--------------------|
+   |     SCREEN 1       |
+   |--------------------|
+   |In:28 W:26 Out:15   |
+   |ph:7.2 Cl:150 <460  | or |ph:7.2 Cl:150 >600  | 
+   |Filter: 12h15 / 16h | 
+   |pH-:12.6l Cl:15.2l  |
+   |--------------------|
+*/  
+void PM_Display_screen_0(PM_SwimmingPoolMeasures_str & measures) {
+  std::string DisplayLine;
+  lcd.clear();
+  lcd.display();
+  lcd.backlight();
+
+  screen[0] = "In:"+measures.InAirTemp_str+"  W:"+measures.WaterTemp_str+"  Out:"+measures.OutAirTemp_str;
+  DisplayLine = "PH:"+measures.pH_str+" Cl:"+measures.Chlorine_str;
+  if (measures.Chlorine_str < measures.ChlorineMin_str) DisplayLine+=" <"+measures.ChlorineMin_str;
+  if (measures.Chlorine_str > measures.ChlorineMax_str) DisplayLine+=" >"+measures.ChlorineMax_str;
+  screen[1] = DisplayLine;
+  screen[2] = "Filter:"+measures.DayFilterTime_str+" / "+measures.MaxDayFilterTime_str;
+  screen[3] = "PH-:"+measures.pHMinusVolume_str+" Cl:"+measures.ChlorineVolume_str;
+
+  lcd.printScreen(screen);
+}
+
+/*
+   |--------------------|
+   |         1         2|
+   |12345678901234567890|
+   |--------------------|
+   |     SCREEN 2       |
+   |--------------------|
+   |Filter:OFF P:1015hPa| or |Filter:ON  P:1015hPa|
+   |Pow:1200W Day:4.2kWh|
+   |Pump pH-:OFF Cl:OFF | or |Pump pH-:ON  Cl:ON  |
+   |Max pH-:20l Cl:20l  |
+   |--------------------|
+*/
+void PM_Display_screen_1(PM_SwimmingPoolMeasures_str & measures) {
+  lcd.clear();
+  lcd.display();
+  lcd.backlight();
+
+  screen[0] = "Filter:"+measures.FilterPumpState_str+" P:"+measures.Pressure_str+"hPa";
+  screen[1] = "Pow:"+measures.ConsumedInstantaneousPower_str+" Day:"+measures.Chlorine_str+"kWh";
+  screen[2] = "Pump PH-:"+measures.pHMinusPumpState_str+" Cl:"+measures.ChlorinePumpState;
+  screen[3] = "Max PH-:"+measures.pHMinusMaxVolume_str+" Cl:"+measures.ChlorineMaxVolume_str;
+
+  lcd.printScreen(screen);
+}
