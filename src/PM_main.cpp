@@ -21,7 +21,6 @@
 #include "PM_Time.h"               // Pool manager time management
 #include "PM_Time_Mngt.h"          // Pool manager time management
 #include "PM_Wifi_Functions.h"     // Pool manager wifi management
-#include "PM_Web_Server.h"         // Pool manager web server management
 #include "PM_OTA_Web_Server.h"     // Pool manager web server management
 #include "PM_LCD.h"                // Pool manager display device management
 #include "PM_Pool_Configuration.h" // Pool manager configuration parameters
@@ -35,18 +34,9 @@ static PM_Pool_Configuration Pool_Configuration;
 // Array of I2C Devices
 static byte I2CDevices[128];
 
-// List the type of web server possible
-enum WebServerType { 
-  OTAWebServer,   // HTTP web server supporting OTA update (Over-The-Air)
-  WebServer       // HTTP and HTTPS web servers
-};
-
 // Instantiate LCD display and a screen template
 PM_LCD lcd(PM_LCD_Device_Addr, PM_LCD_Cols, PM_LCD_Rows);
 std::vector<std::string> screen;
-
-// Select the type of web server to instantiate
-WebServerType ServerType = OTAWebServer;
 
 // To manage the connection on Wifi
 boolean IsWifiConnected   = false;
@@ -106,7 +96,6 @@ void setup() {
   esp_log_level_set("PM_OTA_Web_Server", ESP_LOG_INFO); 
   esp_log_level_set("PM_Time_Mngt",      ESP_LOG_INFO); 
   esp_log_level_set("PM_Time",           ESP_LOG_INFO); 
-  esp_log_level_set("PM_Web_Server",     ESP_LOG_INFO); 
   esp_log_level_set("PM_Wifi_Functions", ESP_LOG_INFO); 
   
   Serial.begin(115200);
@@ -138,12 +127,8 @@ void setup() {
   PM_Display_Activation_Start=now;
   
   // start Web Server
-  switch(ServerType)
-  {
-    case OTAWebServer: PM_OTA_Web_Server_setup();   break;
-    case WebServer:    PM_Web_Server_setup(); break;
-  }
-
+  PM_OTA_Web_Server_setup();
+  
   // Verify the configuration of pool manager
   PM_Error Error = Pool_Configuration.CheckFiltrationTimeAbaqus();
   int ErrorNumber = Error.getErrorNumber();
@@ -287,12 +272,6 @@ void PM_Task_WebServer ( void *pvParameters ) {
     time_tm = localtime(&now);
 	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
     ESP_LOGD(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
-
-    // run Web Server
-    switch(ServerType) {
-      case OTAWebServer: PM_OTA_Web_Server_loop();   break;
-      case WebServer:    PM_Web_Server_loop(); break;
-    }
 
     vTaskDelay( pdMS_TO_TICKS( 1000 ) );
   }

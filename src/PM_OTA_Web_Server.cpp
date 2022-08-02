@@ -28,11 +28,6 @@ void PM_OTA_Web_Server_setup(void) {
   ESP_LOGI(TAG, "HTTP server started");
 }
 
-// Web server in loop 
-void PM_OTA_Web_Server_loop() {
-  // nothing to do 
-}
-
 // handler to treat "page not found"
 void PM_OTA_Web_Server_notFound(AsyncWebServerRequest *request) {
   int http_rc = 404;
