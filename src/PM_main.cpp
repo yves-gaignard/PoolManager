@@ -25,6 +25,7 @@
 #include "PM_LCD.h"                // Pool manager display device management
 #include "PM_Pool_Configuration.h" // Pool manager configuration parameters
 #include "PM_Error.h"              // Pool manager error management
+#include "PM_Utils.h"              // Pool manager utilities
 
 static const char* TAG = "PM_main";
 
@@ -76,6 +77,7 @@ void PM_Task_GPIO      ( void *pvParameters );
 void PM_Display_init    ();
 void PM_Display_screen_0(PM_SwimmingPoolMeasures_str & measures);
 void PM_Display_screen_1(PM_SwimmingPoolMeasures_str & measures);
+void PM_LCD_displayKeyCodes();
 
 // Button declarations
 boolean PM_DisplayButton_State = false;    // Current State
@@ -359,8 +361,9 @@ void PM_Display_screen_0(PM_SwimmingPoolMeasures_str & measures) {
   lcd.clear();
   lcd.display();
   lcd.backlight();
-
-  screen[0] = "In:"+measures.InAirTemp_str+"  W:"+measures.WaterTemp_str+"  Out:"+measures.OutAirTemp_str;
+  char degreeAsciiChar[2];
+  sprintf(degreeAsciiChar, "%c", 176);
+  screen[0] = "In:"+measures.InAirTemp_str+degreeAsciiChar+" W:"+measures.WaterTemp_str+degreeAsciiChar+" Out:"+measures.OutAirTemp_str+degreeAsciiChar;
   DisplayLine = "PH:"+measures.pH_str+" Cl:"+measures.Chlorine_str;
   if (measures.Chlorine_str < measures.ChlorineMin_str) DisplayLine+=" <"+measures.ChlorineMin_str;
   if (measures.Chlorine_str > measures.ChlorineMax_str) DisplayLine+=" >"+measures.ChlorineMax_str;
@@ -395,4 +398,31 @@ void PM_Display_screen_1(PM_SwimmingPoolMeasures_str & measures) {
   screen[3] = "Max PH-:"+measures.pHMinusMaxVolume_str+" Cl:"+measures.ChlorineMaxVolume_str;
 
   lcd.printScreen(screen);
+}
+
+// display all keycodes
+void PM_LCD_displayKeyCodes(void) {
+  uint8_t i = 0;
+  LiquidCrystal_I2C* lcd_in = lcd.getLCD();
+  int colNumber = lcd.getColumnNumber();
+  char ch[10] ;
+
+  while (1) {
+    lcd_in->clear();
+    lcd_in->display();
+    lcd_in->print("Codes 0x"); lcd_in->print(i, HEX);
+    lcd_in->print("-0x"); lcd_in->print(i+colNumber-1, HEX);
+    lcd_in->setCursor(0, 1);
+    std::string line="";
+    for (int j=0; j<colNumber; j++) {
+      sprintf(ch, "%c", (i+j));
+      //sprintf(ch, "%c", 176); // ° 
+      line+=ch;
+    }
+    lcd_in->printf(line.c_str());
+    ESP_LOGD(TAG, "Line displayed: %s", line );
+    i+=colNumber;
+    
+    delay(4000);
+  }
 }

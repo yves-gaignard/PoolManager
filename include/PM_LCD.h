@@ -15,6 +15,7 @@ class PM_LCD {
     uint8_t                  _deviceAddress;               // Adress of the LCD device
     uint8_t                  _columnNumber;                // Column Number of the device
     uint8_t                  _rowNumber;                   // Row Number of the device
+    boolean                  _isInit      = false;         // State of the LCD to store if the init function has been done 
     boolean                  _displayState= true;          // the LCD is on in case of true and is off in case of false
     boolean                  _backlight   = true;          // backlight state
     boolean                  _blink       = false;         // blink state 

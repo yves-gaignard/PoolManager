@@ -193,8 +193,10 @@ void PM_Time_Mngt_initialize_sntp(void)
 #else   /* LWIP_DHCP_GET_NTP_SRV && (SNTP_MAX_SERVERS > 1) */
     // otherwise, use DNS address from a pool
     //sntp_setservername(0, CONFIG_SNTP_TIME_SERVER);
-    sntp_setservername(0, "fr.pool.ntp.org");  // set the secondary NTP server (will be used only if SNTP_MAX_SERVERS > 1)
-    sntp_setservername(1, "pool.ntp.org");     // set the secondary NTP server (will be used only if SNTP_MAX_SERVERS > 1)
+    char ntp_fr[] = "fr.pool.ntp.org";
+    char ntp[] = "pool.ntp.org";
+    sntp_setservername(0, ntp_fr);  // set the secondary NTP server (will be used only if SNTP_MAX_SERVERS > 1)
+    sntp_setservername(1, ntp);     // set the secondary NTP server (will be used only if SNTP_MAX_SERVERS > 1)
 #endif
 
     sntp_set_time_sync_notification_cb(PM_Time_Mngt_time_sync_notification_cb);
