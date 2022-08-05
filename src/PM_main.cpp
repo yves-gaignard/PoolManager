@@ -18,7 +18,6 @@
 #include "PM_Structures.h"         // Pool manager structure definitions
 #include "PM_Parameters.h"         // Pool manager parameters
 #include "PM_I2CScan.h"            // Pool manager I2C scan tools
-#include "PM_Time.h"               // Pool manager time management
 #include "PM_Time_Mngt.h"          // Pool manager time management
 #include "PM_Wifi_Functions.h"     // Pool manager wifi management
 #include "PM_OTA_Web_Server.h"     // Pool manager web server management
@@ -100,13 +99,14 @@ void setup() {
   esp_log_level_set("PM_Time",           ESP_LOG_INFO); 
   esp_log_level_set("PM_Wifi_Functions", ESP_LOG_INFO); 
   
+  //Init serial for logs
   Serial.begin(115200);
   ESP_LOGI(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
   
   //Init LCD
   PM_Display_init();
   
-  // Scan all I2C Devices
+  // Discover all I2C Devices
   int I2CDeviceNumber=0;
   I2CDeviceNumber = PM_I2CScan_Scan(I2CDevices);
   // Print the I2C Devices
@@ -121,9 +121,13 @@ void setup() {
 
   // Initialize time
   PM_Time_Mngt_initialize_time();
-  //time_now.getCurrentNTPTime();
+
+  // Get current time
   time(&now);
-  ESP_LOGI(TAG, "Current date and local time is: %s", PM_Time_Mngt_convertTimeToString(now, "%d/%m/%Y %H:%M:%S").c_str());
+  char timestamp_str[20];
+  tm* time_tm = localtime(&now);
+	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
+  ESP_LOGI(TAG, "Current date and local time is: %s", timestamp_str);
   
   // Start of diaplaying information
   PM_Display_Activation_Start=now;
