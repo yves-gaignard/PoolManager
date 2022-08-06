@@ -12,7 +12,9 @@
 
 static const char* TAG = "PM_I2CScan";
 
+// =========================================================================================
 // Scan all I2C devices, return an array of device addresses 
+// =========================================================================================
 int PM_I2CScan_Scan(byte I2CDevices[]) {
   int I2CDeviceNumber=0;
   byte error, address;
@@ -55,7 +57,9 @@ int PM_I2CScan_Scan(byte I2CDevices[]) {
 
 }
 
-// Print all found I2C device addresses in the log  
+// =========================================================================================
+// Discover all I2C devices and print their addresses to the log  
+// =========================================================================================
 void PM_I2CScan_Print(int I2CDeviceNumber, byte I2CDevices[]) {
   byte DeviceAddress;
   String Log_Msg;
