@@ -16,6 +16,40 @@ static const std::string PM_itoa(int i) {
   return _str;
 }
 
+// Convert an int to hex string
+template <typename I> 
+static std::string n2hexstr(const I w, size_t hex_len = sizeof(I)<<1) {
+    static const char* digits = "0123456789ABCDEF";
+    std::string rc(hex_len,'0');
+    for (size_t i=0, j=(hex_len-1)*4 ; i<hex_len; ++i,j-=4)
+        rc[i] = digits[(w>>j) & 0x0f];
+    return rc;
+}
+
+// Convert a hex string to a long
+static long hexstr2n( const std::string str) {
+    char * p;
+    long n = strtoul( str.c_str(), & p, 16 );
+    if ( * p != 0 ) { //my bad edit was here
+      ESP_LOGD(TAG, "String: %s is not an hexadecimal number", str.c_str());
+      return 0;
+    }
+    else {
+        return n;
+    }
+}
+
+/*
+template< typename T >
+std::string PM_itoh( T i )
+{
+  std::stringstream stream;
+  stream << "0x" 
+         << std::setfill ('0') << std::setw(sizeof(T)*2) 
+         << std::hex << i;
+  return stream.str();
+}
+*/
 // Convert array of 8 bytes to std::string
 static const std::string PM_OneWireDeviceAddressArrayToString(const byte addr[8]) {
   char buffer[12] = {0};
