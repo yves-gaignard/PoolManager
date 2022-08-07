@@ -36,7 +36,7 @@ To increase reliability and maintainability, I chose standard components that ca
 | Immersion Sleeve Pocket|    1   | Thermowell Immersion Sleeve Pocket Stainless Steel 304 BSP 1/2" for Max 6mm Wire|
 | Flash light + Buzzer|    1   | AD16-22SM 12V 22mm Flash Signal Light Red LED Active Buzzer Beep Alarm Indicator Red|
 
-For more information, consult this document: ![Pool Manager BOM Documentation.pdf](Pool-Manager-BOM-Documentation.pdf)
+For more information, consult this document: [Pool Manager BOM Documentation.pdf](Pool-Manager-BOM-Documentation.pdf)
 
 ## Instructions
 

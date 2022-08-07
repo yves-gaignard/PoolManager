@@ -24,6 +24,12 @@ const uint8_t PM_LCD_Device_Addr = 0x27;
 const uint8_t PM_LCD_Cols        = 20;
 const uint8_t PM_LCD_Rows        =  4;
 
+// DS3231 parameters
+// ------------------
+const uint8_t PM_DS3231_Device_Addr     = 0x57;  // The DS3231 device itself
+const uint8_t PM_AT24C32_Device_Address = 0x68;  // (4k EEPROM) contained by the DS3231 device.
+
+
 // list of your Wifi networks with their credentials
 // --------------------------------------------------
 // You can put credentials in a file: PM_Secrets.h 
