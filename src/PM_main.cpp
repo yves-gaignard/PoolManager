@@ -51,10 +51,10 @@ WiFiMulti wifiMulti;
 time_t  now;
 
 // Display LCD parameters
-time_t  PM_Display_Max_Time_Without_Activity=20;  // duration of displaying informat
+time_t  PM_Display_Max_Time_Without_Activity=LCD_DISPLAY_TIMEOUT;  // duration of displaying information
+time_t  PM_Display_Screen_Duration=LCD_DISPLAY_SCREEN_DURATION;    // duration of a screen display before switching to the next time
 time_t  PM_Display_Activation_Start=0;            // time of the last LCD activationion without any user interaction
 time_t  PM_Display_Screen_Start=0;                // time of the current screen start
-time_t  PM_Display_Screen_Duration=5;             // time of display for a screen
 int     PM_Display_Current_Screen_Index=1;        // Current displayed screen index 
 int     PM_Display_Screen_Number=2;               // Total screen number
 boolean PM_Display_Activation_Request=true;       // Request to activate the display
@@ -91,8 +91,6 @@ void PM_Task_GPIO      ( void *pvParameters );
 void PM_Display_init    ();
 void PM_Display_screen_0(PM_SwimmingPoolMeasures_str & measures);
 void PM_Display_screen_1(PM_SwimmingPoolMeasures_str & measures);
-void PM_LCD_displayKeyCodes();
-void printAddress(DeviceAddress deviceAddress);
 
 // Button declarations
 boolean PM_DisplayButton_State = false;    // Current State
@@ -343,9 +341,9 @@ void PM_Task_GPIO      ( void *pvParameters ) {
       deviceName = PM_TemperatureSensors.getDeviceNameByIndex(i);
 
       preciseTemperatureC = PM_TemperatureSensors.getPreciseTempCByName(deviceName);
-      ESP_LOGI(TAG, "%fºC : sensor: %s)",preciseTemperatureC, deviceName.c_str());
+      ESP_LOGD(TAG, "Sensor: %19s : %f°C", deviceName.c_str(),preciseTemperatureC);
       temperatureC = PM_TemperatureSensors.getTempCByName(deviceName);
-      ESP_LOGI(TAG, "%d°C : sensor: %s)",temperatureC, deviceName.c_str());
+      ESP_LOGI(TAG, "Sensor: %19s : %d°C", deviceName.c_str(),temperatureC);
 
       if (deviceName == insideThermometerName) {
         pm_measures.InAirTemp = preciseTemperatureC;
@@ -465,39 +463,4 @@ void PM_Display_screen_1(PM_SwimmingPoolMeasures_str & measures) {
   screen[3] = "Max PH-:"+measures.pHMinusMaxVolume_str+" Cl:"+measures.ChlorineMaxVolume_str;
 
   lcd.printScreen(screen);
-}
-
-// display all keycodes
-void PM_LCD_displayKeyCodes(void) {
-  uint8_t i = 0;
-  LiquidCrystal_I2C* lcd_in = lcd.getLCD();
-  int colNumber = lcd.getColumnNumber();
-  char ch[10] ;
-
-  while (1) {
-    lcd_in->clear();
-    lcd_in->display();
-    lcd_in->print("Codes 0x"); lcd_in->print(i, HEX);
-    lcd_in->print("-0x"); lcd_in->print(i+colNumber-1, HEX);
-    lcd_in->setCursor(0, 1);
-    std::string line="";
-    for (int j=0; j<colNumber; j++) {
-      sprintf(ch, "%c", (i+j));
-      //sprintf(ch, "%c", 176); // ° 
-      line+=ch;
-    }
-    lcd_in->printf(line.c_str());
-    ESP_LOGD(TAG, "Line displayed: %s", line );
-    i+=colNumber;
-    
-    delay(4000);
-  }
-}
-
-// function to print a device address
-void printAddress(DeviceAddress deviceAddress) {
-  for (uint8_t i = 0; i < 8; i++){
-    if (deviceAddress[i] < 16) Serial.print("0");
-      Serial.print(deviceAddress[i], HEX);
-  }
 }

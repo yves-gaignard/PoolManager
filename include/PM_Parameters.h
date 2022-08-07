@@ -38,6 +38,9 @@ const PM_WifiConfig  WifiConf     {IPAddress(192,168,1,99), IPAddress(192,168,1,
 // Listening port
 const int  PM_WebServerPort = 80; 
 
+
+// Configuration of the temperature sensors:
+// ------------------------------------------
 // DS18B20 sensors address
 const std::string insideThermometerName     = "Inside Thermometer";  // Number: 1
 const std::string insideThermometerAddress  = "28CF0F95F0013CFE";    // Number: 1
@@ -52,8 +55,9 @@ const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 
 // ---------------------------
 // Button to activate the LCD display
 #define PM_DisplayButton_Pin 18
-// One wire is plugged into GPIO 5 of the ESP32
-#define ONE_WIRE_BUS 5
+
+// One wire (temperature sensors) is plugged into GPIO 4
+#define ONE_WIRE_BUS 4 
 #define TEMPERATURE_PRECISION 9
 
 // =========================================================================================================
@@ -69,5 +73,16 @@ const char PM_UTCTimeFormat[19]   ="%Y-%m-%dT%H:%M:%SZ";
 // ---------------------------
 // See Timezone definition here : https://sites.google.com/a/usapiens.com/opnode/time-zones
 const char PM_TimeZone[60] = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; // Paris, France
+
+// LCD display parameters
+// ----------------------
+
+// duration of display inactivity before light off (in seconds)
+#define LCD_DISPLAY_TIMEOUT 30
+
+// duration of a screen display before switching to the next time (in seconds)
+#define LCD_DISPLAY_SCREEN_DURATION 5
+
+// 
 
 #endif
