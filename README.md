@@ -36,6 +36,8 @@ To increase reliability and maintainability, I chose standard components that ca
 | Immersion Sleeve Pocket|    1   | Thermowell Immersion Sleeve Pocket Stainless Steel 304 BSP 1/2" for Max 6mm Wire|
 | Flash light + Buzzer|    1   | AD16-22SM 12V 22mm Flash Signal Light Red LED Active Buzzer Beep Alarm Indicator Red|
 
+For more information, consult this document: ![Pool Manager BOM Documentation.pdf](Pool-Manager-BOM-Documentation.pdf)
+
 ## Instructions
 
 ### Build the system
@@ -44,13 +46,15 @@ To increase reliability and maintainability, I chose standard components that ca
 
 ### Setup your development environment
 This project has been develop using PlatformIO + VSCode.
+
 If you begin with this environment, follow the excelent article: [Getting Started with VS Code and PlatformIO IDE for ESP32 and ESP8266 (Windows, Mac OS X, Linux Ubuntu)](https://randomnerdtutorials.com/vs-code-platformio-ide-esp32-esp8266-arduino/).
 
 This article is proposed by the [Random Nerd Tutorials](https://randomnerdtutorials.com/) site. This site is the Reference for everyone who develop with an ESP32.
 You'll find a lot of tutorials and examples.
 
+### Setup your project
 Once your environment is ready, you can setup your project. 
 (TODO)
 
-### Customize and configure
-To customize and configure the Pool Manager application, consult the dedicated README [here](include/README.md).
+### Customize and configure Pool Manager
+To customize and configure the Pool Manager application, consult the dedicated [README](include/README.md).
