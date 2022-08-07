@@ -61,7 +61,7 @@ const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 
 #define TEMPERATURE_PRECISION 9
 
 // =========================================================================================================
-//                                     Pool Manager Configuration
+//                                     Software parameters
 // =========================================================================================================
 
 // Default date & time format
@@ -76,7 +76,6 @@ const char PM_TimeZone[60] = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; // 
 
 // LCD display parameters
 // ----------------------
-
 // duration of display inactivity before light off (in seconds)
 #define LCD_DISPLAY_TIMEOUT 30
 
