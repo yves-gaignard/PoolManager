@@ -17,21 +17,22 @@
 // =========================================================================================================
 
 // ------------------------------------------------------------
-// The filtration time  
+// The filtration duration  
 // ------------------------------------------------------------
-// The filtration time is depending on the water temperature. 
-// A lot of factors may have to be taken into account
-// The result has to be implemented in an abaqus table that you have to adapt in the context of your pool
-// Look for on internet, you'll find a lot of abaqus. Choose the one you think it will be the good one
+// The filtration duration per day depends on lot of factors. The main one is the water temperature. 
+// In order to let you deciding the duration of the filtration, I propose you an abaqus where you can pilot precisly the number of hours, the filtration must be activated.
+// 
+// You have to adapt the default adapted for my pool, to yours.
+// Look for on internet, you'll find a lot of abaqus. Choose the one you think it will be the good one or build yours.
+// 
+// The abaqus consists on an array of triple values: range of temperatures (min and max) and a duration in hours.
+// 
+// Here are the rules to follow for filling up the abaqus:
+// - Rule 1 : the lowest temperature must be -20 and the highest 99
+// - Rule 2 : temperatures in the temperature ranges must be consecutives (aka TempMin of a line must be equal to TempMax of the previous line)
+// - Rule 3 : the filtration duration of consecutive lines must increase 
 
-// The filtration time is conformed to the following abaqus ( Water temperature , duration of filtration per day ) can be customized
-// The implemented values are based on several information taken on intenet and on my experience of my pool.
-
-// Rules to fill in the abaqus
-// R1 : the lowest temperature must be -20 and the highest 99
-// R2 : temperature of the temperature range must be consecutives (aka TempMin of a line must be equal to TempMax of previous line)
-// R3 : the filtration time of consecutive lines must increasing 
-static std::vector<PM_FiltrationTime> PM_FiltrationTime_Abaqus = {
+static std::vector<PM_FiltrationDuration> PM_FiltrationDuration_Abaqus = {
 // { TempMin , TempMax, FiltrationTime }  
   {-20, 14,  2} ,       //             <14°C  ==>  2 hours
   { 14, 15,  3} ,       //  >=14°C and <15°C  ==>  3 hours
@@ -50,8 +51,8 @@ static std::vector<PM_FiltrationTime> PM_FiltrationTime_Abaqus = {
   { 32, 99, 16}         //  >=32°C            ==> 16 hours
 };
 /*  Other possibility found on https://www.desjoyaux.fr/faq/combien-de-temps-pour-la-filtration-de-ma-piscine/#:~:text=La%20r%C3%A8gle%20la%20plus%20simple,filtrer%2012%20heures%20par%20jours.
-  std::vector<PM_FiltrationTime> PM_FiltrationTime_Abaqus = {
-  // { TempMin , TempMax, FiltrationTime }  
+  std::vector<PM_FiltrationDuration> PM_FiltrationDuration_Abaqus = {
+  // { TempMin , TempMax, FiltrationDuration }  
   {-20, 10,  2} ,       //             <10°C  ==>  2 hours
   { 10, 12,  4} ,       //  >=10°C and <12°C  ==>  4 hours
   { 12, 16,  6} ,       //  >=12°C and <16°C  ==>  6 hours
@@ -65,18 +66,20 @@ static std::vector<PM_FiltrationTime> PM_FiltrationTime_Abaqus = {
 // ------------------------------------------------------------
 // Filtration periods
 // ------------------------------------------------------------
-// You can spread the filtration duration all along the day based on periods
-// The period is a couple of start time and end time.
-// The duration of the filtration is spread on these periods depending on the priority. 
-// If several periods have the same priority, and if the total duration is less than the sum of the period with this same priority,
-// then the duration will be spread on these periods for the same time
-// NB: The filtration period is evaluated once a day at midnight just after the day change 
-// NB: It is better to filter during the light day
+// You can spread the filtration duration all along the day based on periods.
+// A period of time is a couple of start time and end time.
+// The duration of the filtration is spread on these periods depending on the priority you affected to each period. 
+// If several periods have the same priority, and if the duration is less than the sum of the periods with this same priority, then the duration will be spread on these periods for the same time
+// NB: The filtration period is evaluated once a day at midnight just after the day change or at the first time of the day after a reboot
+// NB: It is better to filter during the daylight
+// 
+// The filtration period abaqus consists on an array of triple values: start and end times of the period (hour based) and a priority (lower value is the greater priority).
+// Here are the rules to follow:
+// - Rule 1: a period cannot recover another one
+// - Rule 2: all periods have to cover the whole 24h of the day (aka from 0h to 24h)
+// 
+// NB: The array does not need to be sorted and priority begin from 1.
 
-// Rules to check:
-// R1 : The array does not need to be sorted
-// R2 : a period cannot recover another one
-// R3 : all periods have to cover the whole 24h of the day (aka from 0h to 24h)
 static std::vector<PM_FiltrationPeriod> PM_FiltrationPeriod_Abaqus = {
 // { Start , End, Priority }  
   {  8, 12,  1},  // The main priority 1 is allocated to the morning
@@ -93,25 +96,42 @@ static std::vector<PM_FiltrationPeriod> PM_FiltrationPeriod_Abaqus = {
 // ------------------------------------------------------------
 // pH (potential hydrogen) 
 // ------------------------------------------------------------
-// the pH of the pool must be between 7.2 and 7.8
-const float PM_pH_Min = 7.2;
+// The pH level of pool water is a measure of its acidity. 
+// It is noted on a scale of 0 to 14, with a pH below 7.0 indicating the water is acidic. 
+// A pH of 8.0 means the water is basic or alkaline. 
+// Precisely between these two points is the proper pool pH level: 7.4 to 7.8.
+// Even if the min and max values are commonly admitted, you can choose your own limits.
+// To do that you can customize **PM_pH_Min** and **PM_pH_Max** variables.
+const float PM_pH_Min = 7.4;
 const float PM_pH_Max = 7.8;
 
 // ------------------------------------------------------------
 // ORP ( Oxidation-reduction potential)
 // ------------------------------------------------------------
-// Ideal ORP is 650mv. 450mV is the minimum and 750mV the maximum
+// Oxidation-Reduction Potential (ORP) measures the true efficacy of the oxidisers present in the water in millivolts. An ORP reading of 700mV to 720mV is considered adequate for fast and effective disinfection in pools.
+// ORP will rise and fall according to the level of cyanuric acid, pH and contaminants in the water. For example, a pool showing a Free Chlorine level of 2ppm may show an ORP reading of 720 at a pH level of 7.4. As the pH level changes so too will the ORP. At a pH of 7.8 the ORP may read below 700 or at a pH of 7 may read above 750.
+// Nevertheless, the ORP measure depends on the sensor you use. 
+// so you'll have to do some tests on your pool with your own sensors to find the ideal range of ORP.
+// 
+// I propose two values to be customized:
+// 1. **PM_ORP_Min** (in mV) for triggering the injection of Chlorine. Under this value, an alert will be also raised.
+// 2. **PM_ORP_Max** (in mV) for trigerring the stop of injection of Chlorine.
 const int PM_ORP_Min = 450;
 const int PM_ORP_Max = 750;
 
 // ------------------------------------------------------------
 // Pressure in the filtration circuit
 // ------------------------------------------------------------
-// The pressure of the filtration circuit is taken with a pressure sensor installed on the filtration group
+// The pressure of the filtration circuit is taken with a pressure sensor installed on the filtration group.
 // This pressure is near null when the filtration is OFF, but between 1 and 2 bars when it is ON.
-// In case of surpressure, an alert must be raised on the buzzer and on the web site
+// In case of surpressure, an alert must be raised on the buzzer and on the web site.
+// The pressure values are taken into account to control if the filtration is really ON when it should be and also to count the real duration of the filtration during the day as the filtration pump can be set ON by other system not controlled by Pool Manager application like a heater or a people to force the water circulation.
+// 
+// I propose two values to be customized:
+// 1. **PM_Pressure_Min** (in hPa) Over this value, the system considers the filtration is ON. Under, the filtration is OFF.
+// 2. **PM_Pressure_Max** (in hPa) for trigerring an alert for over-pressure on the system.
+const float PM_Pressure_Min = 0.5;
 const float PM_Pressure_Max = 2.0;
-
 
 // ========================================================================================================
 // End of customization

@@ -27,34 +27,34 @@ PM_Error PM_Pool_Configuration::CheckFiltrationTimeAbaqus() {
   // R2 : temperature of the temperature range must be consecutives (aka TempMin of a line must be equal to TempMax of previous line)
   // R3 : the filtration time of consecutive lines must increasing 
 
-  int NumberLine = PM_FiltrationTime_Abaqus.size();
+  int NumberLine = PM_FiltrationDuration_Abaqus.size();
   ESP_LOGI(TAG, "Number of line: %d", NumberLine);
   if (NumberLine == 0 ) { 
     int ErrorNumber=101;
-    std::string ErrorMsg = "The PM_FiltrationTime_Abaqus is empty";
+    std::string ErrorMsg = "The PM_FiltrationDuration_Abaqus is empty";
     ESP_LOGE(TAG, "Error: %d - %s", ErrorNumber, ErrorMsg.c_str());
     return PM_Error(ErrorNumber, ERROR, ErrorMsg.c_str()); 
   }
-  if (PM_FiltrationTime_Abaqus[0].TempMin != -20) { 
+  if (PM_FiltrationDuration_Abaqus[0].TempMin != -20) { 
     int ErrorNumber=102;
-    std::string ErrorMsg = "The minimum temperature of the PM_FiltrationTime_Abaqus is not -20";
+    std::string ErrorMsg = "The minimum temperature of the PM_FiltrationDuration_Abaqus is not -20";
     ESP_LOGE(TAG, "Error: %d - %s", ErrorNumber, ErrorMsg.c_str());
     return PM_Error(ErrorNumber, ERROR, ErrorMsg.c_str()); 
   }
-  if (PM_FiltrationTime_Abaqus[NumberLine-1].TempMax != 99) {
+  if (PM_FiltrationDuration_Abaqus[NumberLine-1].TempMax != 99) {
     int ErrorNumber=103;
-    std::string ErrorMsg = "The maximum temperature of the PM_FiltrationTime_Abaqus is not 99";
+    std::string ErrorMsg = "The maximum temperature of the PM_FiltrationDuration_Abaqus is not 99";
     ESP_LOGE(TAG, "Error: %d - %s", ErrorNumber, ErrorMsg.c_str());
     return PM_Error(ErrorNumber, ERROR, ErrorMsg.c_str()); 
   }
   if (NumberLine >= 1) {
     for (int i = 0; i <= NumberLine-2; i++ ) {
-      if (PM_FiltrationTime_Abaqus[i+1].TempMin != PM_FiltrationTime_Abaqus[i].TempMax) {
-        std::string ErrorMsg = "The max [" + PM_itoa(i+1) +"] and the min [" + PM_itoa(i) + "] temperatures of the PM_FiltrationTime_Abaqus are not the same";
+      if (PM_FiltrationDuration_Abaqus[i+1].TempMin != PM_FiltrationDuration_Abaqus[i].TempMax) {
+        std::string ErrorMsg = "The max [" + PM_itoa(i+1) +"] and the min [" + PM_itoa(i) + "] temperatures of the PM_FiltrationDuration_Abaqus are not the same";
         ESP_LOGE(TAG, "Error: %d - %s", 104, ErrorMsg.c_str());
         return PM_Error(104, ERROR, ErrorMsg.c_str()); 
       }
-      if (PM_FiltrationTime_Abaqus[i+1].Duration < PM_FiltrationTime_Abaqus[i].Duration) { 
+      if (PM_FiltrationDuration_Abaqus[i+1].Duration < PM_FiltrationDuration_Abaqus[i].Duration) { 
         std::string ErrorMsg = "The duration [" + PM_itoa(i+1) +"] is not greater or eaqul to the duration [" + PM_itoa(i) + "]";
         ESP_LOGE(TAG, "Error: %d - %s", 105, ErrorMsg.c_str());
         return PM_Error(105, ERROR, ErrorMsg.c_str()); 
@@ -62,7 +62,7 @@ PM_Error PM_Pool_Configuration::CheckFiltrationTimeAbaqus() {
     }
   }
 
-  return PM_Error(0,INFO, std::string("The filtration time abaqus is validated"));
+  return PM_Error(0,INFO, std::string("The filtration duration abaqus is validated"));
 }
 
 
