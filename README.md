@@ -2,6 +2,7 @@
 A complete automation to control and manage the swimming pool.
 
 ## Introduction
+![Pool Mananager List of Components](image/PoolManagerOverview.jpg)
 The automation for a swimming-pool is something reserved to top-of-the-range systems. Here you can find an affordable, simple but powerful automation-system that you can build by yourself with a little time and effort.
 
 Not only home things can be automated. Indeed, a swimming-pool is something where automation reports incomparable benefits in time, money and ecology.
