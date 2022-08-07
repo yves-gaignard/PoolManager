@@ -8,6 +8,7 @@
 
 // Standard library definitions
 #include <Arduino.h>
+#include <SPI.h>                   // Library for SPI management
 #include <LiquidCrystal_I2C.h>     // Library for LCD management
 #include <WiFi.h>                  // Library for WiFi management
 #include <WiFiMulti.h>             // Library for WiFi management
@@ -15,6 +16,7 @@
 #include <ESPAsyncWebServer.h>     // Library for Web Server Management
 #include <OneWire.h>               // Library for onewire devices
 #include <DallasTemperature.h>     // Library for temperature sensors
+#include <RTClib.h>                // Library for time management on RTC DS3231
 
 // Project definitions
 #include "PM_Structures.h"         // Pool manager structure definitions
@@ -48,13 +50,19 @@ boolean IsWifiConnected   = false;
 WiFiMulti wifiMulti;
 
 // To manage time
-time_t  now;
+RTC_DS3231 rtc;  // RTC device handle
+time_t     now;  // Current time (global variable)
+
+// Variable holding number of times ESP32 restarted since first boot.
+// It is placed into RTC memory using RTC_DATA_ATTR and
+// maintains its value when ESP32 wakes from deep sleep.
+RTC_DATA_ATTR static int boot_count = 0;
 
 // Display LCD parameters
-time_t  PM_Display_Max_Time_Without_Activity=20;  // duration of displaying informat
+time_t  PM_Display_Max_Time_Without_Activity=LCD_DISPLAY_TIMEOUT;  // duration of displaying information
+time_t  PM_Display_Screen_Duration=LCD_DISPLAY_SCREEN_DURATION;    // duration of a screen display before switching to the next time
 time_t  PM_Display_Activation_Start=0;            // time of the last LCD activationion without any user interaction
 time_t  PM_Display_Screen_Start=0;                // time of the current screen start
-time_t  PM_Display_Screen_Duration=5;             // time of display for a screen
 int     PM_Display_Current_Screen_Index=1;        // Current displayed screen index 
 int     PM_Display_Screen_Number=2;               // Total screen number
 boolean PM_Display_Activation_Request=true;       // Request to activate the display
@@ -91,8 +99,6 @@ void PM_Task_GPIO      ( void *pvParameters );
 void PM_Display_init    ();
 void PM_Display_screen_0(PM_SwimmingPoolMeasures_str & measures);
 void PM_Display_screen_1(PM_SwimmingPoolMeasures_str & measures);
-void PM_LCD_displayKeyCodes();
-void printAddress(DeviceAddress deviceAddress);
 
 // Button declarations
 boolean PM_DisplayButton_State = false;    // Current State
@@ -118,7 +124,11 @@ void setup() {
   //Init serial for logs
   Serial.begin(115200);
   ESP_LOGI(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
-  
+
+  // Add a new boot in the global counter
+  ++boot_count;
+  ESP_LOGI(TAG, "Number of boot: %d", boot_count);
+
   //Init LCD
   PM_Display_init();
   
@@ -128,18 +138,64 @@ void setup() {
   // Print the I2C Devices
   PM_I2CScan_Print(I2CDeviceNumber, I2CDevices);
 
-
   // Connect to the strengthest known wifi network
   while ( ! IsWifiConnected){
     IsWifiConnected=PM_Wifi_Functions_DetectAndConnect (wifiMulti);
     delay(100);
   }
 
-  // Initialize time
-  PM_Time_Mngt_initialize_time();
+  // Initialize the time
+  // ------------------------
+  boolean isRTCFound     = true;
+  boolean isRTCLostPower = true;
+  DateTime DT_now;
+  std::string DT_now_str;
 
+  // check if a RTC module is connected
+  if (! rtc.begin()) {
+    ESP_LOGE(TAG, "Cannot find any RTC device. Time will be initialized through a NTP server");
+    isRTCFound = false;
+  } else {
+    isRTCLostPower=rtc.lostPower();   
+  }
+
+  // If there is no RTC module or if it lost its power, set the time with the NTP time
+  if (isRTCLostPower == true ) {
+    ESP_LOGI(TAG, "RTC has lost power. Initialize time with NTP server");
+    // Initialize time from NTP server
+    PM_Time_Mngt_initialize_time();
+
+    // if there is a RTC module, reinitialize it with the NTP time
+    if (isRTCFound == true) {
+      // Get current time
+      time(&now);
+      // adjust time of rtc with the time get from NTP server
+      DT_now = DateTime(now);
+      char DT_now_format[20]= "YYYY-MM-DD hh:mm:ss";
+      DT_now_str = DT_now.toString(DT_now_format);
+      ESP_LOGI(TAG, "Adjust the time of RTC with the NTP time: %s", DT_now_str.c_str() );
+      rtc.adjust(DT_now);
+    }
+  }
+  
+  // if there is a RTC module, set the time with RTC time
+  if (isRTCFound == true) {
+    // set time with the RTC time
+    DT_now = rtc.now();
+    char DT_now_format[20]= "YYYY-MM-DD hh:mm:ss";
+    DT_now_str = DT_now.toString(DT_now_format);
+    ESP_LOGI(TAG, "Get the time from RTC: %s", DT_now_str.c_str() );
+    // set the time
+    now = DT_now.unixtime();
+    ESP_LOGI(TAG, "rtc.now = %u", now );
+    timeval tv = {now, 0}; 
+    timezone tz = {0,0} ;
+    int ret = settimeofday(&tv, &tz);
+    if ( ret != 0 ) {ESP_LOGE(TAG, "Cannot set time from RTC" ); };
+  }
+  
   // Get current time
-  time(&now);
+  // ------------------
   char timestamp_str[20];
   tm* time_tm = localtime(&now);
 	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
@@ -337,15 +393,19 @@ void PM_Task_GPIO      ( void *pvParameters ) {
 	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
     ESP_LOGD(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
+    char timestamp_str[20];
+    tm* time_tm = localtime(&now);
+	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
+    ESP_LOGI(TAG, "Current date and local time is: %s", timestamp_str);
 
     PM_TemperatureSensors.requestTemperatures();
     for (int i = 0 ; i < PM_TemperatureSensors.getDeviceCount(); i++) {
       deviceName = PM_TemperatureSensors.getDeviceNameByIndex(i);
 
       preciseTemperatureC = PM_TemperatureSensors.getPreciseTempCByName(deviceName);
-      ESP_LOGI(TAG, "%fºC : sensor: %s)",preciseTemperatureC, deviceName.c_str());
+      ESP_LOGD(TAG, "Sensor: %19s : %f°C", deviceName.c_str(),preciseTemperatureC);
       temperatureC = PM_TemperatureSensors.getTempCByName(deviceName);
-      ESP_LOGI(TAG, "%d°C : sensor: %s)",temperatureC, deviceName.c_str());
+      ESP_LOGI(TAG, "Sensor: %19s : %d°C", deviceName.c_str(),temperatureC);
 
       if (deviceName == insideThermometerName) {
         pm_measures.InAirTemp = preciseTemperatureC;
@@ -371,7 +431,7 @@ void PM_Task_GPIO      ( void *pvParameters ) {
 // =================================================================================================
 void IRAM_ATTR PM_DisplayButton_ISR() {
   if (millis() - PM_DisplayButton_LastPressed > 100) { // Software debouncing button
-    ESP_LOGD(TAG, "Display button pressed");
+    ESP_LOGI(TAG, "Display button pressed");
     PM_Display_Activation_Request = true;
     PM_DisplayButton_State = !PM_DisplayButton_State;
   }
@@ -465,39 +525,4 @@ void PM_Display_screen_1(PM_SwimmingPoolMeasures_str & measures) {
   screen[3] = "Max PH-:"+measures.pHMinusMaxVolume_str+" Cl:"+measures.ChlorineMaxVolume_str;
 
   lcd.printScreen(screen);
-}
-
-// display all keycodes
-void PM_LCD_displayKeyCodes(void) {
-  uint8_t i = 0;
-  LiquidCrystal_I2C* lcd_in = lcd.getLCD();
-  int colNumber = lcd.getColumnNumber();
-  char ch[10] ;
-
-  while (1) {
-    lcd_in->clear();
-    lcd_in->display();
-    lcd_in->print("Codes 0x"); lcd_in->print(i, HEX);
-    lcd_in->print("-0x"); lcd_in->print(i+colNumber-1, HEX);
-    lcd_in->setCursor(0, 1);
-    std::string line="";
-    for (int j=0; j<colNumber; j++) {
-      sprintf(ch, "%c", (i+j));
-      //sprintf(ch, "%c", 176); // ° 
-      line+=ch;
-    }
-    lcd_in->printf(line.c_str());
-    ESP_LOGD(TAG, "Line displayed: %s", line );
-    i+=colNumber;
-    
-    delay(4000);
-  }
-}
-
-// function to print a device address
-void printAddress(DeviceAddress deviceAddress) {
-  for (uint8_t i = 0; i < 8; i++){
-    if (deviceAddress[i] < 16) Serial.print("0");
-      Serial.print(deviceAddress[i], HEX);
-  }
 }

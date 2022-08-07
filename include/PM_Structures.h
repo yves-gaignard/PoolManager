@@ -27,7 +27,7 @@ struct PM_WifiConfig {
   IPAddress secondaryDNS; //optional
 };
 
-struct PM_FiltrationTime {
+struct PM_FiltrationDuration {
   int  TempMin;
   int  TempMax;
   int  Duration;

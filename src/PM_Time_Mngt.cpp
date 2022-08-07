@@ -39,11 +39,6 @@ static const char *TAG = "PM_Time_Mngt";
 #define INET6_ADDRSTRLEN 48
 #endif
 
-/* Variable holding number of times ESP32 restarted since first boot.
- * It is placed into RTC memory using RTC_DATA_ATTR and
- * maintains its value when ESP32 wakes from deep sleep.
- */
-//RTC_DATA_ATTR static int boot_count = 0;
 
 extern "C" int setenv (const char *__string, const char *__value, int __overwrite);
 extern "C" void tzset();
@@ -67,9 +62,6 @@ void PM_Time_Mngt_time_sync_notification_cb(struct timeval *tv)
 
 void PM_Time_Mngt_initialize_time(void)
 {
-    //++boot_count;
-    //ESP_LOGI(TAG, "Boot count: %d", boot_count);
-
     time_t now;
     struct tm timeinfo;
     time(&now);
