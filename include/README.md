@@ -1,16 +1,16 @@
 # Pool Manager Customization
 Wilcome to the Pool Manager customization part.
 In order to customize your own Pool Manager usage, you have to customize 3 files in the include directory:
-- [PM_Parameters.h](## PM_Parameters.h) 
-- [PM_Pool_Configuration.h](## PM_Pool_Configuration.h)
-- [PM_Secrets.h](## PM_Secrets.h)
+- [PM_Parameters.h](#PM_Parameters.h) 
+- [PM_Pool_Configuration.h](#PM_Pool_Configuration.h)
+- [PM_Secrets.h](#PM_Secrets.h)
 
 Those 3 files are already delivered with my own customization for my pool and my needs. In your case, you'll have your own material which could be a little bit different or less complete. If you have more needs, you'll probably have to add more devices and, for sure, some additional code to manage them.
 
 ## PM_Parameters.h 
 This [file](PM_Parameters.h) contains 2 mains parts
-- the hardware parameters
-- The software parameters
+- [The hardware parameters](#Hardware-parameters)
+- [The software parameters](#Software-parameters)
 
 ### Hardware parameters
 It is the list of parameters to customize Pool Manager such as:
@@ -27,12 +27,12 @@ It is the list of parameters to customize Pool Manager such as:
 - Timeout, duration or frequency of the different sensors, display, etc ... 
 
 ## PM_Pool_Configuration.h 
-This [file](PM_Pool_Configuration.h) contains:
-- [The filtration duration per day abaqus](### Filtration duration abaqus)
-- [The periods of the day when the filtration must be ON](### Filtration periods)
-- [The pH min and max limits to either inject pH minus solution or raise an alert](### pH (potential hydrogen) limits)
-- [The ORP (Oxidation-reduction potential) min and max limits to either inject Chlorine or raise an alert](### ORP limits)
-- [The max pressure in the filtration circuit before raising an alert](### Filtration circuit pressure)
+This [PM_Pool_Configuration.h](PM_Pool_Configuration.h) file contains:
+- [The filtration duration per day abaqus](#Filtration-duration-abaqus)
+- [The periods of the day when the filtration must be ON](#Filtration-periods)
+- [The pH min and max limits to either inject pH minus solution or raise an alert](#pH-limits)
+- [The ORP (Oxidation-reduction potential) min and max limits to either inject Chlorine or raise an alert](#ORP-limits)
+- [The max pressure in the filtration circuit before raising an alert](#Filtration-circuit-pressure)
 
 ### Filtration duration abaqus
 The filtration duration per day depends on lot of factors. The main one is the water temperature. 
@@ -112,8 +112,8 @@ static std::vector<PM_FiltrationPeriod> PM_FiltrationPeriod_Abaqus = {
 // Example 4: if the duration of the filtration is 23h per day, the filtration will at 0h-2h, 8h-12h, 12h-13h, 14h-20h and 20h-24h
 ```
 
-### pH (potential hydrogen) limits 
-The pH level of pool water is a measure of its acidity. It is noted on a scale of 0 to 14, with a pH below 7.0 indicating the water is acidic. A pH of 8.0 means the water is basic or alkaline. Precisely between these two points is the proper pool pH level: 7.4 to 7.8.
+### pH limits 
+The pH (potential hydrogen) level of pool water is a measure of its acidity. It is noted on a scale of 0 to 14, with a pH below 7.0 indicating the water is acidic. A pH of 8.0 means the water is basic or alkaline. Precisely between these two points is the proper pool pH level: 7.4 to 7.8.
 
 There are five main reasons why keeping your pool water in the target pH range is so important.
 
