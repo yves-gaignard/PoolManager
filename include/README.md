@@ -69,7 +69,7 @@ static std::vector<PM_FiltrationDuration> PM_FiltrationDuration_Abaqus = {
   { 32, 99, 16}         //  >=32°C            ==> 16 hours
 };
 ```
-I tried another possibility found on internet provide by [Desjoyaux](https://www.desjoyaux.fr/faq/combien-de-temps-pour-la-filtration-de-ma-piscine/#:~:text=La%20r%C3%A8gle%20la%20plus%20simple,filtrer%2012%20heures%20par%20jours) (a famous French seller of pool) but it does not give satisfaction for my pool.
+I tried another possibility found on internet provided by [Desjoyaux](https://www.desjoyaux.fr/faq/combien-de-temps-pour-la-filtration-de-ma-piscine/#:~:text=La%20r%C3%A8gle%20la%20plus%20simple,filtrer%2012%20heures%20par%20jours) (a famous French seller of pool) but it does not give satisfaction for my pool.
 ```
   static std::vector<PM_FiltrationDuration> PM_FiltrationDuration_Abaqus = {
   // { TempMin , TempMax, FiltrationTime }  
