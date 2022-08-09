@@ -2,7 +2,7 @@
 Wilcome to the Pool Manager customization part.
 In order to customize your own Pool Manager usage, you have to customize 3 files in the include directory:
 - [PM_Parameters.h](#PM_Parameters.h) 
-- [PM_Pool_Configuration.h](#PM_Pool_Configuration.h)
+- [PM_Pool_Config.h](#PM_Pool_Config.h)
 - [PM_Secrets.h](#PM_Secrets.h)
 
 Those 3 files are already delivered with my own customization for my pool and my needs. In your case, you'll have your own material which could be a little bit different or less complete. If you have more needs, you'll probably have to add more devices and, for sure, some additional code to manage them.
@@ -26,8 +26,8 @@ It is the list of parameters to customize Pool Manager such as:
 - Timezone of your location (see https://sites.google.com/a/usapiens.com/opnode/time-zones to get yours)
 - Timeout, duration or frequency of the different sensors, display, etc ... 
 
-## PM_Pool_Configuration.h 
-This [PM_Pool_Configuration.h](PM_Pool_Configuration.h) file contains:
+## PM_Pool_Config.h 
+This [PM_Pool_Config.h](PM_Pool_Config.h) file contains:
 - [The filtration duration per day abaqus](#Filtration-duration-abaqus)
 - [The periods of the day when the filtration must be ON](#Filtration-periods)
 - [The pH min and max limits to either inject pH minus solution or raise an alert](#pH-limits)

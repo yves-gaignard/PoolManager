@@ -4,15 +4,12 @@
   Pool manager time management
 */
 
-#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
-
 // Standard library definitions
 #include <Arduino.h>
 #include <LiquidCrystal_I2C.h>
 
+#include "PM_Pool_Manager.h"
 #include "PM_LCD.h"            // Pool manager LCD management
-
-static const char* TAG = "PM_LCD";
 
 PM_LCD::PM_LCD(uint8_t Device_Addr, uint8_t Cols, uint8_t Rows) {
   this->_initLCD (Device_Addr, Cols, Rows);
@@ -44,7 +41,7 @@ int                 PM_LCD::getRowNumber() {
 }
 
 boolean             PM_LCD::getDisplayState() {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   return _displayState;
 }
     
@@ -52,56 +49,56 @@ void PM_LCD::init() {
   _lcd->init();
 }
 void PM_LCD::clear() {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   _lcd->clear();
 }
 void PM_LCD::home() {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   _lcd->home();
 }
 void PM_LCD::display() {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   _lcd->display();
   _displayState = true;
 }
 void PM_LCD::noDisplay() {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   _lcd->noDisplay();
   _displayState = false;
 }
 void PM_LCD::blink() {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   _lcd->blink();
   _blink=true;
 }
 void PM_LCD::noBlink() {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   _lcd->noBlink();
   _blink=false;
 }
 void PM_LCD::cursor() {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   _lcd->cursor();
   _cursor=true;
 }
 void PM_LCD::noCursor() {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   _lcd->noCursor();
   _cursor=false;
 }
 void PM_LCD::noBacklight() {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   _lcd->noBacklight();
   _backlight=false;
 }
 void PM_LCD::backlight() {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   _lcd->backlight();
   _backlight=true;
 }
 
 void PM_LCD::printScreen       (std::vector<std::string>& screen) {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   this->clear();
   this->display();
   this->backlight();
@@ -116,38 +113,38 @@ void PM_LCD::printScreen       (std::vector<std::string>& screen) {
   }
 }
 void PM_LCD::printScrollScreen (std::vector<std::string>& screen) {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   
 }
 void PM_LCD::printScrollScreen (std::vector<std::string>& screen, int displayTime) {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   
 }
 
 void PM_LCD::printLine         (uint8_t row, std::string& line) {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   std::string subLine;
   subLine = std::string(line+_padding).substr(0, _columnNumber);
   _lcd->printf(subLine.c_str());
 }
 
 void PM_LCD::printScrollLine   (uint8_t row, std::string& line) {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   this->_printScrollLine(row, line, _scrollHorizontalDelay, _scrollDisplayTime);
 }
 
 void PM_LCD::printScrollLine   (uint8_t row, std::string& line, int displayTime) {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   this->_printScrollLine(row, line, _scrollHorizontalDelay, displayTime);
 }
 
 void PM_LCD::printScrollLine   (uint8_t row, std::string& line, int delayTime, int displayTime) {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   this->_printScrollLine(row, line, delayTime, displayTime);
 }
 
 void PM_LCD::_printScrollLine   (uint8_t row, std::string& line, int scrollHorizontalDelay, int scrollDisplayTime) {
-  if (_isInit == false) { ESP_LOGE(TAG, "LCD was not initialized. Take care of coredump !!!"); }
+  if (_isInit == false) { LOG_E("LCD was not initialized. Take care of coredump !!!"); }
   int time_to_display = scrollDisplayTime * 1000;
   std::string message = line + " ";
   int len = message.length();
