@@ -4,7 +4,7 @@
   Main procedure of the Pool Manager project
 */
 
-#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
+#define TAG "PM_main"
 
 // Standard library definitions
 #include <Arduino.h>
@@ -19,22 +19,22 @@
 #include <RTClib.h>                // Library for time management on RTC DS3231
 
 // Project definitions
+#include "PM_Pool_Manager.h"       // Pool manager constant declarations
+#include "PM_Log.h"                // Pool manager log management
 #include "PM_Structures.h"         // Pool manager structure definitions
 #include "PM_Parameters.h"         // Pool manager parameters
 #include "PM_I2CScan.h"            // Pool manager I2C scan tools
 #include "PM_Time_Mngt.h"          // Pool manager time management
-#include "PM_Temperature.h"        // Pool manager time management
-#include "PM_Wifi_Functions.h"     // Pool manager wifi management
-#include "PM_OTA_Web_Server.h"     // Pool manager web server management
+#include "PM_Temperature.h"        // Pool manager temperature management
+#include "PM_Wifi.h"               // Pool manager wifi management
+#include "PM_OTA_Web_Srv.h"        // Pool manager web server management
 #include "PM_LCD.h"                // Pool manager display device management
-#include "PM_Pool_Configuration.h" // Pool manager configuration parameters
+#include "PM_Pool_Config.h"        // Pool manager configuration parameters
 #include "PM_Error.h"              // Pool manager error management
 #include "PM_Utils.h"              // Pool manager utilities
 
-static const char* TAG = "PM_main";
-
 // Intantiate the Pool Manager configuration
-static PM_Pool_Configuration Pool_Configuration;
+static PM_Pool_Config Pool_Configuration;
 
 // Array of I2C Devices
 static byte I2CDevices[128];
@@ -52,11 +52,6 @@ WiFiMulti wifiMulti;
 // To manage time
 RTC_DS3231 rtc;  // RTC device handle
 time_t     now;  // Current time (global variable)
-
-// Variable holding number of times ESP32 restarted since first boot.
-// It is placed into RTC memory using RTC_DATA_ATTR and
-// maintains its value when ESP32 wakes from deep sleep.
-RTC_DATA_ATTR static int boot_count = 0;
 
 // Display LCD parameters
 time_t  PM_Display_Max_Time_Without_Activity=LCD_DISPLAY_TIMEOUT;  // duration of displaying information
@@ -112,22 +107,23 @@ void IRAM_ATTR PM_DisplayButton_ISR();     // Interuption function
 // =================================================================================================
 void setup() {
 
-  // Log level for each part of the project
-  esp_log_level_set("*",                 ESP_LOG_ERROR);        // set all components to ERROR level
-  esp_log_level_set("PM_Display",        ESP_LOG_INFO); 
-  esp_log_level_set("PM_main",           ESP_LOG_INFO); 
-  esp_log_level_set("PM_OTA_Web_Server", ESP_LOG_INFO); 
-  esp_log_level_set("PM_Time_Mngt",      ESP_LOG_INFO); 
-  esp_log_level_set("PM_Time",           ESP_LOG_INFO); 
-  esp_log_level_set("PM_Wifi_Functions", ESP_LOG_INFO); 
-  
   //Init serial for logs
   Serial.begin(115200);
-  ESP_LOGI(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
 
-  // Add a new boot in the global counter
-  ++boot_count;
-  ESP_LOGI(TAG, "Number of boot: %d", boot_count);
+  // Set appropriate log level. The defaul LOG_LEVEL is defined in PoolMaster.h
+  Log.setTag("*"             , LOG_LEVEL);
+  Log.setTag("PM_main"       , LOG_LEVEL);
+  Log.setTag("PM_I2CScan"    , LOG_LEVEL);
+  Log.setTag("PM_Log"        , LOG_LEVEL);
+  Log.setTag("PM_OTA_Web_Srv", LOG_LEVEL);
+  Log.setTag("PM_Pool_Config", LOG_LEVEL);
+  Log.setTag("PM_Temperature", LOG_LEVEL);
+  Log.setTag("PM_Time_Mngt"  , LOG_LEVEL);
+  Log.setTag("PM_Wifi"       , LOG_LEVEL);
+
+  // Log.formatTimestampOff(); // time in milliseconds (if necessary)
+
+  LOG_I(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
 
   //Init LCD
   PM_Display_init();
@@ -140,7 +136,7 @@ void setup() {
 
   // Connect to the strengthest known wifi network
   while ( ! IsWifiConnected){
-    IsWifiConnected=PM_Wifi_Functions_DetectAndConnect (wifiMulti);
+    IsWifiConnected=PM_Wifi_DetectAndConnect (wifiMulti);
     delay(100);
   }
 
@@ -153,7 +149,7 @@ void setup() {
 
   // check if a RTC module is connected
   if (! rtc.begin()) {
-    ESP_LOGE(TAG, "Cannot find any RTC device. Time will be initialized through a NTP server");
+    LOG_E(TAG, "Cannot find any RTC device. Time will be initialized through a NTP server");
     isRTCFound = false;
   } else {
     isRTCLostPower=rtc.lostPower();   
@@ -161,7 +157,7 @@ void setup() {
 
   // If there is no RTC module or if it lost its power, set the time with the NTP time
   if (isRTCLostPower == true ) {
-    ESP_LOGI(TAG, "RTC has lost power. Initialize time with NTP server");
+    LOG_I(TAG, "RTC has lost power. Initialize time with NTP server");
     // Initialize time from NTP server
     PM_Time_Mngt_initialize_time();
 
@@ -173,7 +169,7 @@ void setup() {
       DT_now = DateTime(now);
       char DT_now_format[20]= "YYYY-MM-DD hh:mm:ss";
       DT_now_str = DT_now.toString(DT_now_format);
-      ESP_LOGI(TAG, "Adjust the time of RTC with the NTP time: %s", DT_now_str.c_str() );
+      LOG_I(TAG, "Adjust the time of RTC with the NTP time: %s", DT_now_str.c_str() );
       rtc.adjust(DT_now);
     }
   }
@@ -184,14 +180,14 @@ void setup() {
     DT_now = rtc.now();
     char DT_now_format[20]= "YYYY-MM-DD hh:mm:ss";
     DT_now_str = DT_now.toString(DT_now_format);
-    ESP_LOGI(TAG, "Get the time from RTC: %s", DT_now_str.c_str() );
+    LOG_I(TAG, "Get the time from RTC: %s", DT_now_str.c_str() );
     // set the time
     now = DT_now.unixtime();
-    ESP_LOGI(TAG, "rtc.now = %u", now );
+    LOG_I(TAG, "rtc.now = %u", now );
     timeval tv = {now, 0}; 
     timezone tz = {0,0} ;
     int ret = settimeofday(&tv, &tz);
-    if ( ret != 0 ) {ESP_LOGE(TAG, "Cannot set time from RTC" ); };
+    if ( ret != 0 ) {LOG_E(TAG, "Cannot set time from RTC" ); };
   }
   
   // Get current time
@@ -199,22 +195,22 @@ void setup() {
   char timestamp_str[20];
   tm* time_tm = localtime(&now);
 	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-  ESP_LOGI(TAG, "Current date and local time is: %s", timestamp_str);
+  LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
   
   // Start of diaplaying information
   PM_Display_Activation_Start=now;
   
   // start Web Server
-  PM_OTA_Web_Server_setup();
+  PM_OTA_Web_Srv_setup();
   
   // Verify the configuration of pool manager
   PM_Error Error = Pool_Configuration.CheckFiltrationTimeAbaqus();
   int ErrorNumber = Error.getErrorNumber();
   if (ErrorNumber != 0) {
-    ESP_LOGE(TAG, "The Filtration Time Abaqus does not respect the rules. Please check it !");
+    LOG_E(TAG, "The Filtration Time Abaqus does not respect the rules. Please check it !");
     std::string Display_ErrorNumber = "Error: "+Error.getErrorNumberStr();
     std::string Display_ErrorMessage = Error.getDisplayMsg();
-    ESP_LOGE(TAG, "%s",Display_ErrorMessage.c_str());
+    LOG_E(TAG, "%s",Display_ErrorMessage.c_str());
     lcd.clear();
     lcd.printLine(0, Display_ErrorNumber);
     lcd.printScrollLine(1, Display_ErrorMessage, 60);
@@ -223,10 +219,10 @@ void setup() {
 
   Error = Pool_Configuration.CheckFiltrationPeriodAbaqus();
   if (Error.getErrorNumber() != 0) {
-    ESP_LOGE(TAG, "The Filtration Period Abaqus does not respect the rules. Please check it !");
+    LOG_E(TAG, "The Filtration Period Abaqus does not respect the rules. Please check it !");
     std::string Display_ErrorNumber = "Error: " + Error.getErrorNumberStr();
     std::string Display_ErrorMessage = Error.getDisplayMsg();
-    ESP_LOGE(TAG, "%s",Display_ErrorMessage.c_str());
+    LOG_E(TAG, "%s",Display_ErrorMessage.c_str());
     lcd.clear();
     lcd.printLine(0, Display_ErrorNumber);
     lcd.printScrollLine(1, Display_ErrorMessage, 60);
@@ -245,11 +241,11 @@ void setup() {
   // Declare temperature sensors
   PM_TemperatureSensors.init(temperatureSensors);
   int tempSensorsNumber = PM_TemperatureSensors.getDeviceCount();
-  ESP_LOGI(TAG, "%d temperature sensors found",tempSensorsNumber);
+  LOG_I(TAG, "%d temperature sensors found",tempSensorsNumber);
 
   for (int i = 0; i< tempSensorsNumber; i++){
     std::string deviceAddrStr = PM_TemperatureSensors.getDeviceAddress(i);
-    ESP_LOGI(TAG, "sensor address [%d] : %s",i , deviceAddrStr.c_str() );
+    LOG_I(TAG, "sensor address [%d] : %s",i , deviceAddrStr.c_str() );
     if ( deviceAddrStr == insideThermometerAddress ) {
       PM_TemperatureSensors.addDevice(insideThermometerName, insideThermometerAddress);
     } else if (deviceAddrStr == outsideThermometerAddress) {
@@ -257,7 +253,7 @@ void setup() {
     } else if (deviceAddrStr == waterThermometerAddress) {
       PM_TemperatureSensors.addDevice(waterThermometerName, waterThermometerAddress);
     } else {
-      ESP_LOGI(TAG, "Unknown temperature sensor found. Its address is: %s",deviceAddrStr.c_str());
+      LOG_I(TAG, "Unknown temperature sensor found. Its address is: %s",deviceAddrStr.c_str());
     }
   }
   
@@ -291,7 +287,7 @@ void PM_Task_Main      ( void *pvParameters ) {
     time(&now);
     time_tm = localtime(&now);
 	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    ESP_LOGD(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
+    LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
     vTaskDelay( pdMS_TO_TICKS( 50000 ) );
   }
@@ -309,14 +305,14 @@ void PM_Task_LCD       ( void *pvParameters ) {
     time(&now);
     time_tm = localtime(&now);
 	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    ESP_LOGD(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
+    LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
     // if lcd display button is pressed then set the display ON in case of OFF
     if ( PM_Display_Activation_Request == true) {
       if (lcd.getDisplayState() == false ) {  
         // the LCD is OFF. We just set it ON again
         lcd.display();
-        ESP_LOGV(TAG, "%s : Display is shown",timestamp_str);
+        LOG_V(TAG, "%s : Display is shown",timestamp_str);
         // reset the display duration counter
         PM_Display_Activation_Start=now;
       }
@@ -329,18 +325,18 @@ void PM_Task_LCD       ( void *pvParameters ) {
       if ( (now - PM_Display_Screen_Start) >= PM_Display_Screen_Duration) { 
         // display the next screen
         int screen_index= (PM_Display_Current_Screen_Index+1)%PM_Display_Screen_Number;
-        ESP_LOGV(TAG, "%s : Screen index %d",timestamp_str, screen_index);
+        LOG_V(TAG, "%s : Screen index %d",timestamp_str, screen_index);
         switch (screen_index) {
           case 0 : PM_Display_screen_0(pm_measures_str);
               PM_Display_Screen_Start=now;
-              ESP_LOGD(TAG, "%s : Display screen %d",timestamp_str, screen_index);
+              LOG_D(TAG, "%s : Display screen %d",timestamp_str, screen_index);
             break;
           case 1 : PM_Display_screen_1(pm_measures_str);
               PM_Display_Screen_Start=now;
-              ESP_LOGD(TAG, "%s : Display screen %d",timestamp_str, screen_index);
+              LOG_D(TAG, "%s : Display screen %d",timestamp_str, screen_index);
             break;
           default:
-            ESP_LOGE(TAG, "%s : Cannot Display screen %d",timestamp_str, screen_index);
+            LOG_E(TAG, "%s : Cannot Display screen %d",timestamp_str, screen_index);
         }
         PM_Display_Current_Screen_Index=screen_index;
       } 
@@ -349,7 +345,7 @@ void PM_Task_LCD       ( void *pvParameters ) {
       if (now - PM_Display_Activation_Start >= PM_Display_Max_Time_Without_Activity ) {
         lcd.noDisplay();
         lcd.noBacklight();
-        ESP_LOGD(TAG, "%s : Display is stopped",timestamp_str);
+        LOG_D(TAG, "%s : Display is stopped",timestamp_str);
       }
     }
     vTaskDelay( pdMS_TO_TICKS( 5000 ) );
@@ -368,7 +364,7 @@ void PM_Task_WebServer ( void *pvParameters ) {
     time(&now);
     time_tm = localtime(&now);
 	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    ESP_LOGD(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
+    LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
     vTaskDelay( pdMS_TO_TICKS( 3000 ) );
   }
@@ -391,21 +387,21 @@ void PM_Task_GPIO      ( void *pvParameters ) {
     time(&now);
     time_tm = localtime(&now);
 	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    ESP_LOGD(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
+    LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
     char timestamp_str[20];
     tm* time_tm = localtime(&now);
 	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    ESP_LOGI(TAG, "Current date and local time is: %s", timestamp_str);
+    LOG_I(TAG, "Current date and local time is: %s", timestamp_str);
 
     PM_TemperatureSensors.requestTemperatures();
     for (int i = 0 ; i < PM_TemperatureSensors.getDeviceCount(); i++) {
       deviceName = PM_TemperatureSensors.getDeviceNameByIndex(i);
 
       preciseTemperatureC = PM_TemperatureSensors.getPreciseTempCByName(deviceName);
-      ESP_LOGD(TAG, "Sensor: %19s : %f°C", deviceName.c_str(),preciseTemperatureC);
+      LOG_D(TAG, "Sensor: %19s : %f°C", deviceName.c_str(),preciseTemperatureC);
       temperatureC = PM_TemperatureSensors.getTempCByName(deviceName);
-      ESP_LOGI(TAG, "Sensor: %19s : %d°C", deviceName.c_str(),temperatureC);
+      LOG_I(TAG, "Sensor: %19s : %d°C", deviceName.c_str(),temperatureC);
 
       if (deviceName == insideThermometerName) {
         pm_measures.InAirTemp = preciseTemperatureC;
@@ -431,7 +427,7 @@ void PM_Task_GPIO      ( void *pvParameters ) {
 // =================================================================================================
 void IRAM_ATTR PM_DisplayButton_ISR() {
   if (millis() - PM_DisplayButton_LastPressed > 100) { // Software debouncing button
-    ESP_LOGI(TAG, "Display button pressed");
+    LOG_I(TAG, "Display button pressed");
     PM_Display_Activation_Request = true;
     PM_DisplayButton_State = !PM_DisplayButton_State;
   }

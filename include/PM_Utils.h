@@ -8,6 +8,7 @@
 
 // Standard library definitions
 #include <Arduino.h>
+#include "PM_Pool_Manager.h"
 
 // Convert integer to std::string
 static const std::string PM_itoa(int i) {
@@ -31,7 +32,7 @@ static long hexstr2n( const std::string str) {
     char * p;
     long n = strtoul( str.c_str(), & p, 16 );
     if ( * p != 0 ) { //my bad edit was here
-      ESP_LOGD(TAG, "String: %s is not an hexadecimal number", str.c_str());
+      LOG_D(TAG, "String: %s is not an hexadecimal number", str.c_str());
       return 0;
     }
     else {

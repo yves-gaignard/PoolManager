@@ -4,14 +4,10 @@
   Pool manager time management
 */
 
-#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
-
 // Standard library definitions
 #include <Arduino.h>
 
 #include "PM_Error.h"            // Pool manager Error management
-
-static const char* TAG = "PM_Error";
 
 // Constructors
 PM_Error::PM_Error(int error_number, PM_ERROR_LEVEL error_level, std::string error_msg) {

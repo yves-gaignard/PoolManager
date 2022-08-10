@@ -2,7 +2,7 @@
 Wilcome to the Pool Manager customization part.
 In order to customize your own Pool Manager usage, you have to customize 3 files in the include directory:
 - [PM_Parameters.h](#PM_Parameters.h) 
-- [PM_Pool_Configuration.h](#PM_Pool_Configuration.h)
+- [PM_Pool_Config.h](#PM_Pool_Config.h)
 - [PM_Secrets.h](#PM_Secrets.h)
 
 Those 3 files are already delivered with my own customization for my pool and my needs. In your case, you'll have your own material which could be a little bit different or less complete. If you have more needs, you'll probably have to add more devices and, for sure, some additional code to manage them.
@@ -26,8 +26,8 @@ It is the list of parameters to customize Pool Manager such as:
 - Timezone of your location (see https://sites.google.com/a/usapiens.com/opnode/time-zones to get yours)
 - Timeout, duration or frequency of the different sensors, display, etc ... 
 
-## PM_Pool_Configuration.h 
-This [PM_Pool_Configuration.h](PM_Pool_Configuration.h) file contains:
+## PM_Pool_Config.h 
+This [PM_Pool_Config.h](PM_Pool_Config.h) file contains:
 - [The filtration duration per day abaqus](#Filtration-duration-abaqus)
 - [The periods of the day when the filtration must be ON](#Filtration-periods)
 - [The pH min and max limits to either inject pH minus solution or raise an alert](#pH-limits)
@@ -69,7 +69,7 @@ static std::vector<PM_FiltrationDuration> PM_FiltrationDuration_Abaqus = {
   { 32, 99, 16}         //  >=32°C            ==> 16 hours
 };
 ```
-I tried another possibility found on internet provide by [Desjoyaux](https://www.desjoyaux.fr/faq/combien-de-temps-pour-la-filtration-de-ma-piscine/#:~:text=La%20r%C3%A8gle%20la%20plus%20simple,filtrer%2012%20heures%20par%20jours) (a famous French seller of pool) but it does not give satisfaction for my pool.
+I tried another possibility found on internet provided by [Desjoyaux](https://www.desjoyaux.fr/faq/combien-de-temps-pour-la-filtration-de-ma-piscine/#:~:text=La%20r%C3%A8gle%20la%20plus%20simple,filtrer%2012%20heures%20par%20jours) (a famous French seller of pool) but it does not give satisfaction for my pool.
 ```
   static std::vector<PM_FiltrationDuration> PM_FiltrationDuration_Abaqus = {
   // { TempMin , TempMax, FiltrationTime }  
