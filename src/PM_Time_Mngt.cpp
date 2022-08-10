@@ -13,6 +13,8 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
+#define TAG "PM_Time_Mngt"
+
 #include <Arduino.h>
 #include "PM_Pool_Manager.h"
 #include <PM_Time_Mngt.h>
@@ -47,14 +49,14 @@ extern "C" void tzset();
 void sntp_sync_time(struct timeval *tv)
 {
    settimeofday(tv, NULL);
-   LOG_I("Time is synchronized from custom code");
+   LOG_I(TAG, "Time is synchronized from custom code");
    sntp_set_sync_status(SNTP_SYNC_STATUS_COMPLETED);
 }
 #endif
 
 void PM_Time_Mngt_time_sync_notification_cb(struct timeval *tv)
 {
-    LOG_I("Notification of a time synchronization event");
+    LOG_I(TAG, "Notification of a time synchronization event");
 }
 
 void PM_Time_Mngt_initialize_time(void)
@@ -65,7 +67,7 @@ void PM_Time_Mngt_initialize_time(void)
     localtime_r(&now, &timeinfo);
     // Is time set? If not, tm_year will be (1970 - 1900).
     if (timeinfo.tm_year < (2016 - 1900)) {
-        LOG_I("Time is not set yet. Connecting to WiFi and getting time over NTP.");
+        LOG_I(TAG, "Time is not set yet. Connecting to WiFi and getting time over NTP.");
         PM_Time_Mngt_obtain_time();
         // update 'now' variable with current time
         time(&now);
@@ -75,7 +77,7 @@ void PM_Time_Mngt_initialize_time(void)
         // add 500 ms error to the current system time.
         // Only to demonstrate a work of adjusting method!
         {
-            LOG_I("Add a error for test adjtime");
+            LOG_I(TAG, "Add a error for test adjtime");
             struct timeval tv_now;
             gettimeofday(&tv_now, NULL);
             int64_t cpu_time = (int64_t)tv_now.tv_sec * 1000000L + (int64_t)tv_now.tv_usec;
@@ -84,7 +86,7 @@ void PM_Time_Mngt_initialize_time(void)
             settimeofday(&tv_error, NULL);
         }
 
-        LOG_I("Time was set, now just adjusting it. Use SMOOTH SYNC method.");
+        LOG_I(TAG, "Time was set, now just adjusting it. Use SMOOTH SYNC method.");
         obtain_time();
         // update 'now' variable with current time
         time(&now);
@@ -98,13 +100,13 @@ void PM_Time_Mngt_initialize_time(void)
     tzset();
     localtime_r(&now, &timeinfo);
     strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
-    LOG_I("The current date/time in Paris is: %s", strftime_buf);
+    LOG_I(TAG, "The current date/time in Paris is: %s", strftime_buf);
 
     if (sntp_get_sync_mode() == SNTP_SYNC_MODE_SMOOTH) {
         struct timeval outdelta;
         while (sntp_get_sync_status() == SNTP_SYNC_STATUS_IN_PROGRESS) {
             adjtime(NULL, &outdelta);
-            LOG_I("Waiting for adjusting time ... outdelta = %jd sec: %li ms: %li us",
+            LOG_I(TAG, "Waiting for adjusting time ... outdelta = %jd sec: %li ms: %li us",
                         (intmax_t)outdelta.tv_sec,
                         outdelta.tv_usec/1000,
                         outdelta.tv_usec%1000);
@@ -113,7 +115,7 @@ void PM_Time_Mngt_initialize_time(void)
     }
 
     //const int deep_sleep_sec = 10;
-    //LOG_I("Entering deep sleep for %d seconds", deep_sleep_sec);
+    //LOG_I(TAG, "Entering deep sleep for %d seconds", deep_sleep_sec);
     //esp_deep_sleep(1000000LL * deep_sleep_sec);
 }
 
@@ -150,7 +152,7 @@ void PM_Time_Mngt_obtain_time(void)
     int retry = 0;
     const int retry_count = 15;
     while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
-        LOG_I("Waiting for system time to be set... (%d/%d)", retry, retry_count);
+        LOG_I(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
         vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
     time(&now);
@@ -161,7 +163,7 @@ void PM_Time_Mngt_obtain_time(void)
 
 void PM_Time_Mngt_initialize_sntp(void)
 {
-    LOG_I("Initializing SNTP");
+    LOG_I(TAG, "Initializing SNTP");
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
 
 /*
@@ -194,17 +196,17 @@ void PM_Time_Mngt_initialize_sntp(void)
 #endif
     sntp_init();
 
-    LOG_I("List of configured NTP servers:");
+    LOG_I(TAG, "List of configured NTP servers:");
 
     for (uint8_t i = 0; i < SNTP_MAX_SERVERS; ++i){
         if (sntp_getservername(i)){
-            LOG_I("server %d: %s", i, sntp_getservername(i));
+            LOG_I(TAG, "server %d: %s", i, sntp_getservername(i));
         } else {
             // we have either IPv4 or IPv6 address, let's print it
             char buff[INET6_ADDRSTRLEN];
             ip_addr_t const *ip = sntp_getserver(i);
             if (ipaddr_ntoa_r(ip, buff, INET6_ADDRSTRLEN) != NULL)
-                LOG_I("server %d: %s", i, buff);
+                LOG_I(TAG, "server %d: %s", i, buff);
         }
     }
 }
@@ -221,7 +223,7 @@ std::string PM_Time_Mngt_convertTimeToString(time_t time_in, const char* string_
   boolean isGmtRequested = false;
   int len=strlen(string_format);
   if (len > MAX_LENGTH_TIME_FORMAT-1) {
-    LOG_E("Too long datetime format: %d", len);
+    LOG_E(TAG, "Too long datetime format: %d", len);
     return "";
   }
   if (len > 1) {
@@ -229,19 +231,19 @@ std::string PM_Time_Mngt_convertTimeToString(time_t time_in, const char* string_
     char one_char[2];
     strncpy(one_char,&string_format[len-1],1);
     one_char[1] = '\0';
-    LOG_V("last char of format = %s", one_char);
+    LOG_V(TAG, "last char of format = %s", one_char);
     if  ( strcmp(one_char, "Z") == 0 ) { isGmtRequested = true; }
   }
 
   if (isGmtRequested) {
-    LOG_V("GMT time requested");
+    LOG_V(TAG, "GMT time requested");
   	time_tm = gmtime(&time_in);
   }
   else {
-    LOG_V("LOCAL time requested");
+    LOG_V(TAG, "LOCAL time requested");
   	time_tm = localtime(&time_in);
   }
 	strftime(timestamp_string, 100, string_format, time_tm);
-  LOG_V("%s", timestamp_string);
+  LOG_V(TAG, "%s", timestamp_string);
   return timestamp_string;
 }

@@ -4,6 +4,8 @@
   Main procedure of the Pool Manager project
 */
 
+#define TAG "PM_main"
+
 // Standard library definitions
 #include <Arduino.h>
 #include <SPI.h>                   // Library for SPI management
@@ -108,13 +110,20 @@ void setup() {
   //Init serial for logs
   Serial.begin(115200);
 
-    // Set appropriate debug level. The level is defined in PoolMaster.h
-  Log.setDebugLevel(LOG_LEVEL);
-  Log.timestampOn();
-  Log.debugLabelOn();
-  Log.formatTimestampOn();
+  // Set appropriate log level. The defaul LOG_LEVEL is defined in PoolMaster.h
+  Log.setTag("*"             , LOG_LEVEL);
+  Log.setTag("PM_main"       , LOG_LEVEL);
+  Log.setTag("PM_I2CScan"    , LOG_LEVEL);
+  Log.setTag("PM_Log"        , LOG_LEVEL);
+  Log.setTag("PM_OTA_Web_Srv", LOG_LEVEL);
+  Log.setTag("PM_Pool_Config", LOG_LEVEL);
+  Log.setTag("PM_Temperature", LOG_LEVEL);
+  Log.setTag("PM_Time_Mngt"  , LOG_LEVEL);
+  Log.setTag("PM_Wifi"       , LOG_LEVEL);
 
-  LOG_I("Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
+  // Log.formatTimestampOff(); // time in milliseconds (if necessary)
+
+  LOG_I(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
 
   //Init LCD
   PM_Display_init();
@@ -140,7 +149,7 @@ void setup() {
 
   // check if a RTC module is connected
   if (! rtc.begin()) {
-    LOG_E("Cannot find any RTC device. Time will be initialized through a NTP server");
+    LOG_E(TAG, "Cannot find any RTC device. Time will be initialized through a NTP server");
     isRTCFound = false;
   } else {
     isRTCLostPower=rtc.lostPower();   
@@ -148,7 +157,7 @@ void setup() {
 
   // If there is no RTC module or if it lost its power, set the time with the NTP time
   if (isRTCLostPower == true ) {
-    LOG_I("RTC has lost power. Initialize time with NTP server");
+    LOG_I(TAG, "RTC has lost power. Initialize time with NTP server");
     // Initialize time from NTP server
     PM_Time_Mngt_initialize_time();
 
@@ -160,7 +169,7 @@ void setup() {
       DT_now = DateTime(now);
       char DT_now_format[20]= "YYYY-MM-DD hh:mm:ss";
       DT_now_str = DT_now.toString(DT_now_format);
-      LOG_I("Adjust the time of RTC with the NTP time: %s", DT_now_str.c_str() );
+      LOG_I(TAG, "Adjust the time of RTC with the NTP time: %s", DT_now_str.c_str() );
       rtc.adjust(DT_now);
     }
   }
@@ -171,14 +180,14 @@ void setup() {
     DT_now = rtc.now();
     char DT_now_format[20]= "YYYY-MM-DD hh:mm:ss";
     DT_now_str = DT_now.toString(DT_now_format);
-    LOG_I("Get the time from RTC: %s", DT_now_str.c_str() );
+    LOG_I(TAG, "Get the time from RTC: %s", DT_now_str.c_str() );
     // set the time
     now = DT_now.unixtime();
-    LOG_I("rtc.now = %u", now );
+    LOG_I(TAG, "rtc.now = %u", now );
     timeval tv = {now, 0}; 
     timezone tz = {0,0} ;
     int ret = settimeofday(&tv, &tz);
-    if ( ret != 0 ) {LOG_E("Cannot set time from RTC" ); };
+    if ( ret != 0 ) {LOG_E(TAG, "Cannot set time from RTC" ); };
   }
   
   // Get current time
@@ -186,7 +195,7 @@ void setup() {
   char timestamp_str[20];
   tm* time_tm = localtime(&now);
 	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-  LOG_I("Current date and local time is: %s", timestamp_str);
+  LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
   
   // Start of diaplaying information
   PM_Display_Activation_Start=now;
@@ -198,10 +207,10 @@ void setup() {
   PM_Error Error = Pool_Configuration.CheckFiltrationTimeAbaqus();
   int ErrorNumber = Error.getErrorNumber();
   if (ErrorNumber != 0) {
-    LOG_E("The Filtration Time Abaqus does not respect the rules. Please check it !");
+    LOG_E(TAG, "The Filtration Time Abaqus does not respect the rules. Please check it !");
     std::string Display_ErrorNumber = "Error: "+Error.getErrorNumberStr();
     std::string Display_ErrorMessage = Error.getDisplayMsg();
-    LOG_E("%s",Display_ErrorMessage.c_str());
+    LOG_E(TAG, "%s",Display_ErrorMessage.c_str());
     lcd.clear();
     lcd.printLine(0, Display_ErrorNumber);
     lcd.printScrollLine(1, Display_ErrorMessage, 60);
@@ -210,10 +219,10 @@ void setup() {
 
   Error = Pool_Configuration.CheckFiltrationPeriodAbaqus();
   if (Error.getErrorNumber() != 0) {
-    LOG_E("The Filtration Period Abaqus does not respect the rules. Please check it !");
+    LOG_E(TAG, "The Filtration Period Abaqus does not respect the rules. Please check it !");
     std::string Display_ErrorNumber = "Error: " + Error.getErrorNumberStr();
     std::string Display_ErrorMessage = Error.getDisplayMsg();
-    LOG_E("%s",Display_ErrorMessage.c_str());
+    LOG_E(TAG, "%s",Display_ErrorMessage.c_str());
     lcd.clear();
     lcd.printLine(0, Display_ErrorNumber);
     lcd.printScrollLine(1, Display_ErrorMessage, 60);
@@ -232,11 +241,11 @@ void setup() {
   // Declare temperature sensors
   PM_TemperatureSensors.init(temperatureSensors);
   int tempSensorsNumber = PM_TemperatureSensors.getDeviceCount();
-  LOG_I("%d temperature sensors found",tempSensorsNumber);
+  LOG_I(TAG, "%d temperature sensors found",tempSensorsNumber);
 
   for (int i = 0; i< tempSensorsNumber; i++){
     std::string deviceAddrStr = PM_TemperatureSensors.getDeviceAddress(i);
-    LOG_I("sensor address [%d] : %s",i , deviceAddrStr.c_str() );
+    LOG_I(TAG, "sensor address [%d] : %s",i , deviceAddrStr.c_str() );
     if ( deviceAddrStr == insideThermometerAddress ) {
       PM_TemperatureSensors.addDevice(insideThermometerName, insideThermometerAddress);
     } else if (deviceAddrStr == outsideThermometerAddress) {
@@ -244,7 +253,7 @@ void setup() {
     } else if (deviceAddrStr == waterThermometerAddress) {
       PM_TemperatureSensors.addDevice(waterThermometerName, waterThermometerAddress);
     } else {
-      LOG_I("Unknown temperature sensor found. Its address is: %s",deviceAddrStr.c_str());
+      LOG_I(TAG, "Unknown temperature sensor found. Its address is: %s",deviceAddrStr.c_str());
     }
   }
   
@@ -278,7 +287,7 @@ void PM_Task_Main      ( void *pvParameters ) {
     time(&now);
     time_tm = localtime(&now);
 	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    LOG_D("%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
+    LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
     vTaskDelay( pdMS_TO_TICKS( 50000 ) );
   }
@@ -296,14 +305,14 @@ void PM_Task_LCD       ( void *pvParameters ) {
     time(&now);
     time_tm = localtime(&now);
 	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    LOG_D("%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
+    LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
     // if lcd display button is pressed then set the display ON in case of OFF
     if ( PM_Display_Activation_Request == true) {
       if (lcd.getDisplayState() == false ) {  
         // the LCD is OFF. We just set it ON again
         lcd.display();
-        LOG_V("%s : Display is shown",timestamp_str);
+        LOG_V(TAG, "%s : Display is shown",timestamp_str);
         // reset the display duration counter
         PM_Display_Activation_Start=now;
       }
@@ -316,18 +325,18 @@ void PM_Task_LCD       ( void *pvParameters ) {
       if ( (now - PM_Display_Screen_Start) >= PM_Display_Screen_Duration) { 
         // display the next screen
         int screen_index= (PM_Display_Current_Screen_Index+1)%PM_Display_Screen_Number;
-        LOG_V("%s : Screen index %d",timestamp_str, screen_index);
+        LOG_V(TAG, "%s : Screen index %d",timestamp_str, screen_index);
         switch (screen_index) {
           case 0 : PM_Display_screen_0(pm_measures_str);
               PM_Display_Screen_Start=now;
-              LOG_D("%s : Display screen %d",timestamp_str, screen_index);
+              LOG_D(TAG, "%s : Display screen %d",timestamp_str, screen_index);
             break;
           case 1 : PM_Display_screen_1(pm_measures_str);
               PM_Display_Screen_Start=now;
-              LOG_D("%s : Display screen %d",timestamp_str, screen_index);
+              LOG_D(TAG, "%s : Display screen %d",timestamp_str, screen_index);
             break;
           default:
-            LOG_E("%s : Cannot Display screen %d",timestamp_str, screen_index);
+            LOG_E(TAG, "%s : Cannot Display screen %d",timestamp_str, screen_index);
         }
         PM_Display_Current_Screen_Index=screen_index;
       } 
@@ -336,7 +345,7 @@ void PM_Task_LCD       ( void *pvParameters ) {
       if (now - PM_Display_Activation_Start >= PM_Display_Max_Time_Without_Activity ) {
         lcd.noDisplay();
         lcd.noBacklight();
-        LOG_D("%s : Display is stopped",timestamp_str);
+        LOG_D(TAG, "%s : Display is stopped",timestamp_str);
       }
     }
     vTaskDelay( pdMS_TO_TICKS( 5000 ) );
@@ -355,7 +364,7 @@ void PM_Task_WebServer ( void *pvParameters ) {
     time(&now);
     time_tm = localtime(&now);
 	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    LOG_D("%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
+    LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
     vTaskDelay( pdMS_TO_TICKS( 3000 ) );
   }
@@ -378,21 +387,21 @@ void PM_Task_GPIO      ( void *pvParameters ) {
     time(&now);
     time_tm = localtime(&now);
 	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    LOG_D("%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
+    LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
     char timestamp_str[20];
     tm* time_tm = localtime(&now);
 	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    LOG_I("Current date and local time is: %s", timestamp_str);
+    LOG_I(TAG, "Current date and local time is: %s", timestamp_str);
 
     PM_TemperatureSensors.requestTemperatures();
     for (int i = 0 ; i < PM_TemperatureSensors.getDeviceCount(); i++) {
       deviceName = PM_TemperatureSensors.getDeviceNameByIndex(i);
 
       preciseTemperatureC = PM_TemperatureSensors.getPreciseTempCByName(deviceName);
-      LOG_D("Sensor: %19s : %f°C", deviceName.c_str(),preciseTemperatureC);
+      LOG_D(TAG, "Sensor: %19s : %f°C", deviceName.c_str(),preciseTemperatureC);
       temperatureC = PM_TemperatureSensors.getTempCByName(deviceName);
-      LOG_I("Sensor: %19s : %d°C", deviceName.c_str(),temperatureC);
+      LOG_I(TAG, "Sensor: %19s : %d°C", deviceName.c_str(),temperatureC);
 
       if (deviceName == insideThermometerName) {
         pm_measures.InAirTemp = preciseTemperatureC;
@@ -418,7 +427,7 @@ void PM_Task_GPIO      ( void *pvParameters ) {
 // =================================================================================================
 void IRAM_ATTR PM_DisplayButton_ISR() {
   if (millis() - PM_DisplayButton_LastPressed > 100) { // Software debouncing button
-    LOG_I("Display button pressed");
+    LOG_I(TAG, "Display button pressed");
     PM_Display_Activation_Request = true;
     PM_DisplayButton_State = !PM_DisplayButton_State;
   }

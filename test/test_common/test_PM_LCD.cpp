@@ -13,6 +13,7 @@
 
 #include <PM_LCD.h>
 #include <unity.h>
+#include <FS.h>
 
 PM_LCD lcd(0x27, 20, 4);
 

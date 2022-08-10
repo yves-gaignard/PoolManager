@@ -4,6 +4,8 @@
   OTA Web Server management
 */
 
+#define TAG "PM_OTA_Web_Srv"
+
 // Standard library definitions
 #include <Arduino.h>
 #include <AsyncElegantOTA.h>
@@ -22,7 +24,7 @@ void PM_OTA_Web_Srv_setup(void) {
 
   AsyncElegantOTA.begin(&OTAServer);    // Start ElegantOTA
   OTAServer.begin();
-  LOG_I("HTTP server started");
+  LOG_I(TAG, "HTTP server started");
 }
 
 // handler to treat "page not found"
@@ -36,7 +38,7 @@ void PM_OTA_Web_Srv_notFound(AsyncWebServerRequest *request) {
   Response+="<body><h1>404 Not Found</h1><p>The requested resource was not found on this server.</p></body>";
   Response+="</html>";
   request->send(http_rc, Response_type, Response);
-  LOG_V("send %d %s \nResponse: %s", http_rc, Response_type, Response);
+  LOG_V(TAG, "send %d %s \nResponse: %s", http_rc, Response_type, Response);
 }
 
 // handler to treat "root URL"
@@ -56,5 +58,5 @@ void PM_OTA_Web_Srv_root(AsyncWebServerRequest *request) {
   Response+="</body>";
   Response+="</html>";
   request->send(http_rc, Response_type, Response);
-  LOG_V("send %d %s \nResponse: %s", http_rc, Response_type, Response);
+  LOG_V(TAG, "send %d %s \nResponse: %s", http_rc, Response_type, Response);
 }

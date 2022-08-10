@@ -4,6 +4,8 @@
   Functions relatives to the Wifi
 */
 
+#define TAG "PM_Wifi"
+
 // Standard library definitions
 #include <Arduino.h>
 #include <WiFi.h>
@@ -27,7 +29,7 @@ boolean PM_Wifi_DetectAndConnect (WiFiMulti& wifiMulti) {
   WiFi.mode(WIFI_STA);
   // Configures static IP address
   if (!WiFi.config(WifiConf.local_IP, WifiConf.gateway, WifiConf.subnet, WifiConf.primaryDNS, WifiConf.secondaryDNS)) {
-    LOG_E("Wifi STA Failed to configure");
+    LOG_E(TAG, "Wifi STA Failed to configure");
     return false;
   }
 
@@ -37,31 +39,31 @@ boolean PM_Wifi_DetectAndConnect (WiFiMulti& wifiMulti) {
   
   // WiFi.scanNetworks will return the number of networks found
   int n = WiFi.scanNetworks();
-  LOG_I("Wifi scan done");
+  LOG_I(TAG, "Wifi scan done");
   if (n == 0) {
-      LOG_E("No known networks found");
+      LOG_E(TAG, "No known networks found");
       return false;
   } 
   else {
     Log_Msg=String(n) +" networks found";
-    LOG_I("%s", Log_Msg.c_str());
+    LOG_I(TAG, "%s", Log_Msg.c_str());
     for (int i = 0; i < n; ++i) {
       // Print SSID and RSSI for each network found
       Log_Msg=String(i+1)+": "+WiFi.SSID(i)+" ("+WiFi.RSSI(i)+")"+(WiFi.encryptionType(i) == WIFI_AUTH_OPEN?" ":"*");
-      LOG_I("%s", Log_Msg.c_str());
+      LOG_I(TAG, "%s", Log_Msg.c_str());
       delay(10);
     }
   }
 
   // Connect to Wi-Fi using wifiMulti (connects to the SSID with strongest connection)
-  LOG_I("Connecting Wifi...");
+  LOG_I(TAG, "Connecting Wifi...");
   if(wifiMulti.run() == WL_CONNECTED) {
     Log_Msg="WiFi connected to : " + WiFi.SSID();
-    LOG_I("%s", Log_Msg.c_str());
+    LOG_I(TAG, "%s", Log_Msg.c_str());
     Log_Msg="WiFi strength     : " + String(WiFi.RSSI());
-    LOG_I("%s", Log_Msg.c_str());
+    LOG_I(TAG, "%s", Log_Msg.c_str());
     Log_Msg="Local IP address  : " + WiFi.localIP().toString();
-    LOG_I("%s", Log_Msg.c_str());
+    LOG_I(TAG, "%s", Log_Msg.c_str());
   }
 
   return true;

@@ -4,6 +4,8 @@
   Functions to scan all I2C devices
 */
 
+#define TAG "PM_I2CScan"
+
 #include <Arduino.h>
 #include <Wire.h>               // Library to scan the I2C devices
 
@@ -18,7 +20,7 @@ int PM_I2CScan_Scan(byte I2CDevices[]) {
   byte error, address;
   String Log_Msg;
 
-  LOG_I("Scanning for I2C Devices…");
+  LOG_I(TAG, "Scanning for I2C Devices…");
 
   for (address = 1; address < 127; address++ )
   {
@@ -38,18 +40,18 @@ int PM_I2CScan_Scan(byte I2CDevices[]) {
         Log_Msg+="0";
       }
       Log_Msg+=String (address, HEX);
-      LOG_I("%s", Log_Msg.c_str());
+      LOG_I(TAG, "%s", Log_Msg.c_str());
     }
   }
   if (I2CDeviceNumber == 0)
   {
-    LOG_I("No I2C devices found");
+    LOG_I(TAG, "No I2C devices found");
   }
   else
   {
     Log_Msg=I2CDeviceNumber;
     Log_Msg+=" devices found";
-    LOG_I("%s", Log_Msg.c_str());
+    LOG_I(TAG, "%s", Log_Msg.c_str());
   }
   return I2CDeviceNumber;
 
@@ -71,7 +73,7 @@ void PM_I2CScan_Print(int I2CDeviceNumber, byte I2CDevices[]) {
     }
     Log_Msg+=String (DeviceAddress, HEX);
     Log_Msg+=" !";
-    LOG_I("%s", Log_Msg.c_str());
+    LOG_I(TAG, "%s", Log_Msg.c_str());
   }
 
 }

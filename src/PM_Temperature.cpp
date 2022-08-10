@@ -4,11 +4,15 @@
   Pool manager time management
 */
 
+#define TAG "PM_Temperature"
+
 // Standard library definitions
 #include <Arduino.h>
 
-#include "PM_Temperature.h"            // Pool manager temperature management
-#include "PM_Utils.h"                  // Pool manager utilities
+#include "PM_Pool_Manager.h"       // Pool manager constant declarations
+#include "PM_Log.h"                // Pool manager log management
+#include "PM_Temperature.h"        // Pool manager temperature management
+#include "PM_Utils.h"              // Pool manager utilities
 
 PM_Temperature::PM_Temperature() {
 }
@@ -29,11 +33,11 @@ void PM_Temperature::init (DallasTemperature & sensors) {
 int PM_Temperature::getDeviceCount() {
   if (_isInit) {
     _sensorNumber = _sensors.getDeviceCount();
-    // LOG_D("%d temperature sensors found", _sensorNumber);
+    // LOG_D(TAG, "%d temperature sensors found", _sensorNumber);
     return _sensorNumber;
   } 
   else{
-    LOG_E("PM_Temperature object not initialized");
+    LOG_E(TAG, "PM_Temperature object not initialized");
     return -1;
   }
 }
@@ -43,38 +47,38 @@ std::string PM_Temperature::getDeviceAddress(int deviceIndex) {
   DeviceAddress deviceAddress;
   if (_isInit) {
     if (!_sensors.getAddress(deviceAddress, deviceIndex)) {
-      LOG_E("Device: %d not found", deviceIndex);
+      LOG_E(TAG, "Device: %d not found", deviceIndex);
     } 
     deviceAddressStr = deviceAddressToString(deviceAddress);
   } 
   else{
-    LOG_E("PM_Temperature object not initialized");
+    LOG_E(TAG, "PM_Temperature object not initialized");
   }
 
-  // LOG_D("Device address : %s", deviceAddressStr.c_str());
+  // LOG_D(TAG, "Device address : %s", deviceAddressStr.c_str());
   return deviceAddressStr;
 }
 
 int PM_Temperature::addDevice(std::string deviceName, std::string deviceAddress) {
   if (_isInit) {
     if (std::find(_deviceNameArray.begin(), _deviceNameArray.end(), deviceName) != _deviceNameArray.end() ) {
-      LOG_E("%s temperature sensor name already exist on the table of sensor name", deviceName.c_str());
+      LOG_E(TAG, "%s temperature sensor name already exist on the table of sensor name", deviceName.c_str());
       return 2;
     }
     else { 
       if (std::find(_deviceAddressArray.begin(), _deviceAddressArray.end(), deviceAddress) != _deviceAddressArray.end() ) {
-        LOG_E("%s temperature sensor address already exist on the table of sensor addr", deviceAddress.c_str());
+        LOG_E(TAG, "%s temperature sensor address already exist on the table of sensor addr", deviceAddress.c_str());
         return 3;
       }
       else {
-        LOG_D("Add temperature sensor: %s with the address: %s", deviceName.c_str(), deviceAddress.c_str());
+        LOG_D(TAG, "Add temperature sensor: %s with the address: %s", deviceName.c_str(), deviceAddress.c_str());
         _deviceNameArray.push_back(deviceName);
         _deviceAddressArray.push_back(deviceAddress); 
       }
     }
   } 
   else {
-    LOG_E("PM_Temperature object not initialized");
+    LOG_E(TAG, "PM_Temperature object not initialized");
     return 1;
   }
   return 0;
@@ -88,11 +92,11 @@ std::string PM_Temperature::getDeviceNameByIndex(int idx) {
       deviceName = _deviceNameArray[idx];
     } 
     else {
-      LOG_E("Bad index %d to get the device name", idx);
+      LOG_E(TAG, "Bad index %d to get the device name", idx);
     }
   }
   else {
-    LOG_E("PM_Temperature object not initialized");
+    LOG_E(TAG, "PM_Temperature object not initialized");
   }
   return deviceName;
 }
@@ -108,7 +112,7 @@ void PM_Temperature::requestTemperatures() {
     _request = _sensors.requestTemperatures();
   }
   else {
-    LOG_E("PM_Temperature object not initialized");
+    LOG_E(TAG, "PM_Temperature object not initialized");
   }
 }
 
@@ -117,20 +121,20 @@ float PM_Temperature::getPreciseTempCByIndex(int idx) {
   float temperatureC;
   if (_isInit) {
     if (idx < 0 || idx >= _sensorNumber) {
-      LOG_E("Cannot get temperature for unknown sensor index: %d ", idx);
+      LOG_E(TAG, "Cannot get temperature for unknown sensor index: %d ", idx);
     }
     temperatureC = -127.0; // retry in case of failure to get temperature
     int max_try = 5; 
     int nb_try = 0;
     while (temperatureC == -127.0 && nb_try < max_try) {
       temperatureC = _sensors.getTempCByIndex(idx);
-      LOG_D("Get temperature for index %d: %f ", idx, temperatureC);
+      LOG_D(TAG, "Get temperature for index %d: %f ", idx, temperatureC);
       nb_try ++;
     }
     return temperatureC;
   }
   else {
-    LOG_E("PM_Temperature object not initialized");
+    LOG_E(TAG, "PM_Temperature object not initialized");
     temperatureC = -128.0;
     return temperatureC;
   }
@@ -147,7 +151,7 @@ int PM_Temperature::getTempCByIndex(int idx) {
     return temperatureC;
   }
   else {
-    LOG_E("PM_Temperature object not initialized");
+    LOG_E(TAG, "PM_Temperature object not initialized");
     temperatureC = -128;
     return temperatureC;
   }
@@ -159,15 +163,15 @@ float PM_Temperature::getPreciseTempCByAddress(std::string deviceAddress) {
   if (_isInit) {
     ptrdiff_t pos = find(_deviceAddressArray.begin(), _deviceAddressArray.end(), deviceAddress) - _deviceAddressArray.begin();
     if (pos >= _sensorNumber) {
-      LOG_E("Cannot get temperature for unknown sensor address: %s ", deviceAddress.c_str());
+      LOG_E(TAG, "Cannot get temperature for unknown sensor address: %s ", deviceAddress.c_str());
     }
     else {
       temperatureC = this->getTempCByIndex(pos);
-      LOG_D("Get temperature for name %s: %f ", deviceAddress.c_str(), temperatureC);
+      LOG_D(TAG, "Get temperature for name %s: %f ", deviceAddress.c_str(), temperatureC);
     }
   }
   else {
-    LOG_E("PM_Temperature object not initialized");
+    LOG_E(TAG, "PM_Temperature object not initialized");
   }
   return temperatureC;
 }
@@ -181,7 +185,7 @@ int PM_Temperature::getTempCByAddress(std::string deviceAddress) {
     temperatureC = (int) tempPreciseC;
   }
   else {
-    LOG_E("PM_Temperature object not initialized");
+    LOG_E(TAG, "PM_Temperature object not initialized");
   }
   return temperatureC;
 }
@@ -192,15 +196,15 @@ float PM_Temperature::getPreciseTempCByName(std::string deviceName) {
   if (_isInit) {
     ptrdiff_t pos = find(_deviceNameArray.begin(), _deviceNameArray.end(), deviceName) - _deviceNameArray.begin();
     if (pos >= _sensorNumber) {
-      LOG_E("Cannot get temperature for unknown sensor name: %s ", deviceName.c_str());
+      LOG_E(TAG, "Cannot get temperature for unknown sensor name: %s ", deviceName.c_str());
     }
     else {
       temperatureC = this->getTempCByIndex(pos);
-      LOG_D("Get temperature for name %s: %f ", deviceName.c_str(), temperatureC);
+      LOG_D(TAG, "Get temperature for name %s: %f ", deviceName.c_str(), temperatureC);
     }
   }
   else {
-    LOG_E("PM_Temperature object not initialized");
+    LOG_E(TAG, "PM_Temperature object not initialized");
   }
   return temperatureC;
 }
@@ -214,7 +218,7 @@ int PM_Temperature::getTempCByName(std::string deviceName) {
     temperatureC = (int) tempPreciseC;
   }
   else {
-    LOG_E("PM_Temperature object not initialized");
+    LOG_E(TAG, "PM_Temperature object not initialized");
   }
   return temperatureC;
 }
@@ -224,13 +228,13 @@ std::string PM_Temperature::deviceAddressToString(DeviceAddress deviceAddress) {
   std::string deviceAddressString;
   for (int i = 0; i < 8; i++)
   {  
-    // LOG_D("deviceAddress[%d] = %d", i,  deviceAddress[i]);
+    // LOG_D(TAG, "deviceAddress[%d] = %d", i,  deviceAddress[i]);
     // zero pad the address if necessary
     deviceAddressString += n2hexstr(deviceAddress[i]);
-    // LOG_D("deviceAddressString = %s", deviceAddressString.c_str());
+    // LOG_D(TAG, "deviceAddressString = %s", deviceAddressString.c_str());
   }
   if (deviceAddressString.size() != 16) {
-    LOG_E("deviceAddressString = %s length is not 16", deviceAddressString.c_str());
+    LOG_E(TAG, "deviceAddressString = %s length is not 16", deviceAddressString.c_str());
     return "";
   };
   return deviceAddressString;
@@ -244,7 +248,7 @@ T PM_Temperature::stringToDeviceAddress(std::string deviceAddressStr) {
   { 
     long n = hexstr2n(deviceAddressStr.substr(i*2, 2));
     deviceAddress[i]=n;
-    LOG_D("deviceAddress[%d] = %d", i,  deviceAddress[i]);
+    LOG_D(TAG, "deviceAddress[%d] = %d", i,  deviceAddress[i]);
   }
   return deviceAddress;
 }
