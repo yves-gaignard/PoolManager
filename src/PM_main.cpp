@@ -17,7 +17,9 @@
 #include <OneWire.h>               // Library for onewire devices
 #include <DallasTemperature.h>     // Library for temperature sensors
 #include <RTClib.h>                // Library for time management on RTC DS3231
-#include <Preferences.h>           // Library for preference storage maangement
+#include <Preferences.h>           // Library for preference storage management
+#include <PID_v1.h>                // Library for PID controller (Proportional–Integral–Derivative controller)
+#include <time.h>                  // Library for management time
 
 // Project definitions
 #include "PM_Pool_Manager.h"       // Pool manager constant declarations
@@ -30,12 +32,17 @@
 #include "PM_Wifi.h"               // Pool manager wifi management
 #include "PM_OTA_Web_Srv.h"        // Pool manager web server management
 #include "PM_LCD.h"                // Pool manager display device management
-#include "PM_Config.h"        // Pool manager configuration parameters
+#include "PM_Config.h"             // Pool manager configuration parameters
 #include "PM_Error.h"              // Pool manager error management
 #include "PM_Utils.h"              // Pool manager utilities
+#include "PM_Pump.h"               // Pool manager pumps management
 
 // Intantiate the Pool Manager configuration
 static PM_Config Pool_Configuration;
+
+// To manage time
+RTC_DS3231 rtc;  // RTC device handle
+time_t     now;  // Current time (global variable)
 
 // Array of I2C Devices
 static byte I2CDevices[128];
@@ -47,15 +54,79 @@ std::vector<std::string> screen;
 // NVS Non Volatile SRAM (eqv. EEPROM)
 Preferences nvs;   
 
+// swimming pool measures
+PM_SwimmingPoolMeasures     pm_measures     = { 
+  now,   // time_t  Timestamp;                      // Last modification timestamp
+  PM_VERSION, //  uint8_t PMVersion;                // version of the structure
+  true,  // bool    AutoMode;                       // Mode Automatic (true) or Manual (false)
+  false, // bool    WinterMode;                     // Winter Mode if true
+  false, // bool    pH_RegulationOnOff;             
+  false, // bool    Orp_RegulationOnOff;             
+  false, // boolean FilterPumpState;                // State of the filtering pump (true, false)
+  false, // boolean pHMinusPumpState;               // State of the pH- pump (true, false)
+  false, // boolean ChlorinePumpState;              // State of the pH- pump (true, false)
+  -20.0, // float   InAirTemp;                      // Inside air temperature in °C 
+  -20.0, // float   WaterTemp;                      // Water temperature in °C of the swimming pool
+  -20.0, // float   OutAirTemp;                     // Outside air temperature in °C
+  7.4,   // double  pHValue;                        // Current pH value
+  1800000, //ulong   pHPIDWindowSize;
+  0,     // ulong   pHPIDwindowStartTime;           // pH PID window start time   
+  2700,  // ulong   pHPumpUpTimeLimit;              // Time in seconds max per day for pH injection
+  0.0,   // double  pHPIDOutput;
+  7.3,   // double  pH_SetPoint;
+  2700000.0, //double  pH_Kp;
+  0.0,   // double  pH_Ki;
+  0.0,   // double  pH_Kd;
+  250.0, // double  OrpValue;                       // Current redox measure unit: mV
+  1800000, //ulong   OrpPIDWindowSize;
+  0,     // ulong   OrpPIDwindowStartTime;          // Orp PID window start time   
+  2700,  // ulong   OrpPumpUpTimeLimit;             // Time in seconds max per day for Chlorine injection
+  0.0,   // double  OrpPIDOutput;
+  7.3,   // double  Orp_SetPoint;
+  2700000.0, //double  Orp_Kp;
+  0.0,   // double  Orp_Ki;
+  0.0,   // double  Orp_Kd;
+  0,     // time_t  FilteredDuration;               // Filtration Duration since the begin of the day
+  0,     // time_t  DayFiltrationDuration;          // Maximum Filtration duration for the whole day
+  0,     // time_t  FiltrationStartTime;            // Next start time of the filtration
+  0,     // time_t  FiltrationEndTime;              // Next end time of the filtration
+  PM_pH_Pump_Flow_Rate,       // float   pHMinusFlowRate;    // Flow rate of pH Minus liquid injected (liter per hour)
+  PM_Chlorine_Pump_Flow_Rate, // float   ChlorineFlowRate;   // Flow rate of Chlorine liquid injected (liter per hour)
+  0.0,   // float   pHMinusVolume;                  // Volume of pH Minus liquid since the last complete fill of the container
+  0.0,   // float   ChlorineVolume;                 // Volume of liquid chlorine since the last complete fill of the container
+  0,     // int32_t ConsumedInstantaneousPower;     // Instantaneous Power in Watt consumed by the filtration pump
+  0,     // int32_t DayConsumedPower;               // Power in Watt consumed by the filtration pump since the begin of the day
+  0.0,   // float   Pressure;                       // Pressure in the filtering device (unit hPa)
+  PM_pH_Tank_Volume,        // float   pHMinusTankVolume;              // Max volume of the pH- tank
+  PM_Chlorine_Tank_Volume,  // float   ChlorineTankVolume;             // Max volume of the Chlorine tank
+  100.0, // float   pHMinusTankFill;                // % Fill of volume of the pH- tank
+  100.0  // float   ChlorineTankFill;               // % Fill of volume of the Chlorine tank
+}; 
+PM_SwimmingPoolMeasures_str pm_measures_str = {             "0", "00", "00", "00", "7.4", "0", "0", "000", "00h00", "00h00","00.0", "00.0","00.0", "00.0", "0000", "0000", "0000", "OFF", "OFF", "OFF", "00.0", "00.0" }; 
+
+// Instanciations of Pump and PID objects to make them global. But the constructors are then called 
+// before loading of the storage struct. At run time, the attributes take the default
+// values of the storage struct as they are compiled, just a few lines above, and not those which will 
+// be read from NVS later. This means that the correct objects attributes must be set later in
+// the setup function (fortunatelly, init methods exist).
+
+// The four pumps of the system (instanciate the Pump class)
+// In this case, all pumps start/Stop are managed by relays. pH, ORP and Robot pumps are interlocked with 
+// filtration pump
+PM_Pump FiltrationPump(FILTRATION_PUMP, FILTRATION_PUMP);
+PM_Pump PhPump(PH_PUMP, PH_PUMP, NO_LEVEL, FILTRATION_PUMP, pm_measures.pHMinusFlowRate,  pm_measures.pHMinusTankVolume, pm_measures.pHMinusTankFill);
+PM_Pump ChlPump(CHL_PUMP, CHL_PUMP, NO_LEVEL, FILTRATION_PUMP, pm_measures.ChlorineFlowRate, pm_measures.ChlorineTankVolume, pm_measures.ChlorineTankFill);
+
+//PIDs instances
+//Specify the links and initial tuning parameters
+PID pHPID(&pm_measures.pHValue, &pm_measures.pHPIDOutput, &pm_measures.pH_SetPoint, pm_measures.pH_Kp, pm_measures.pH_Ki, pm_measures.pH_Kd, pHPID_DIRECTION);
+PID OrpPID(&pm_measures.OrpValue, &pm_measures.OrpPIDOutput, &pm_measures.Orp_SetPoint, pm_measures.Orp_Kp, pm_measures.Orp_Ki, pm_measures.Orp_Kd, OrpPID_DIRECTION);
+
 // To manage the connection on Wifi
 boolean IsWifiConnected   = false;
 
 // To manage wifi between multiple networks
 WiFiMulti wifiMulti;
-
-// To manage time
-RTC_DS3231 rtc;  // RTC device handle
-time_t     now;  // Current time (global variable)
 
 // Display LCD parameters
 time_t  PM_Display_Max_Time_Without_Activity=LCD_DISPLAY_TIMEOUT;  // duration of displaying information
@@ -66,9 +137,6 @@ int     PM_Display_Current_Screen_Index=1;        // Current displayed screen in
 int     PM_Display_Screen_Number=2;               // Total screen number
 boolean PM_Display_Activation_Request=true;       // Request to activate the display
 
-// swimming pool measures
-PM_SwimmingPoolMeasures     pm_measures     = { PM_VERSION, now, 0.0,  0.0,  0.0,   0.0,     0,      0,       0  , 0.0,     0.0,     0,      0,     0.0, false, false, false,   0.0,    0.0  }; 
-PM_SwimmingPoolMeasures_str pm_measures_str = {             "0", "00", "00", "00", "0.0", "000", "00h00", "00h00","00.0", "00.0", "0000", "0000", "0000", "OFF", "OFF", "OFF", "00.0", "00.0" }; 
 
 
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
@@ -103,6 +171,10 @@ void PM_Display_screen_1(PM_SwimmingPoolMeasures_str & measures);
 bool PM_NVS_Init();
 bool PM_NVS_Load();
 bool PM_NVS_Save();
+void PM_Temperature_Init();
+void PM_SetpHPID(bool Enable);
+void PM_SetOrpPID(bool Enable);
+void PM_CalculateNextFiltrationPeriods();
 
 // Button declarations
 boolean PM_DisplayButton_State = false;    // Current State
@@ -121,11 +193,11 @@ void setup() {
 
   // Set appropriate log level. The defaul LOG_LEVEL is defined in PoolMaster.h
   Log.setTag("*"             , LOG_LEVEL);
-  Log.setTag("PM_main"       , LOG_LEVEL);
+  Log.setTag("PM_main"       , LOG_VERBOSE);
   Log.setTag("PM_I2CScan"    , LOG_LEVEL);
   Log.setTag("PM_Log"        , LOG_LEVEL);
   Log.setTag("PM_OTA_Web_Srv", LOG_LEVEL);
-  Log.setTag("PM_Config",      LOG_LEVEL);
+  Log.setTag("PM_Config"     , LOG_VERBOSE);
   Log.setTag("PM_Temperature", LOG_LEVEL);
   Log.setTag("PM_Time_Mngt"  , LOG_LEVEL);
   Log.setTag("PM_Wifi"       , LOG_LEVEL);
@@ -152,11 +224,9 @@ void setup() {
   }
 
   // Time initialization
-  // --------------------
   PM_Time_Init();
 
   // Get current time
-  // ------------------
   char timestamp_str[20];
   tm* time_tm = localtime(&now);
 	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
@@ -165,8 +235,13 @@ void setup() {
   // Start of diaplaying information
   PM_Display_Activation_Start=now;
   
+    // For DEBUG , remove all keys
+  // nvs.begin(Project.Name.c_str(),false);
+  // if ( ! nvs.clear() ) LOG_E(TAG, "Cannot clear the NVS namespace: %s", Project.Name.c_str());
+  // nvs.end();
+ 
   // Initialize NVS data 
-  if (PM_NVS_Init()) LOG_I(TAG, "Error on NVS initialization phase. See traces");
+  if ( ! PM_NVS_Init()) LOG_I(TAG, "Error on NVS initialization phase. See traces");
 
   // start Web Server
   PM_OTA_Web_Srv_setup();
@@ -197,8 +272,7 @@ void setup() {
     for ( ;; ) {} //infinite loop as the configuration could not be wrong
   }
   
-
-  // Display the first screen
+   // Display the first screen
   PM_Display_screen_0(pm_measures_str);
   PM_Display_Screen_Start=now;
 
@@ -207,24 +281,46 @@ void setup() {
   attachInterrupt(PM_DisplayButton_Pin, PM_DisplayButton_ISR, FALLING);
   
   // Declare temperature sensors
-  PM_TemperatureSensors.init(temperatureSensors);
-  int tempSensorsNumber = PM_TemperatureSensors.getDeviceCount();
-  LOG_I(TAG, "%d temperature sensors found",tempSensorsNumber);
+  PM_Temperature_Init();
 
-  for (int i = 0; i< tempSensorsNumber; i++){
-    std::string deviceAddrStr = PM_TemperatureSensors.getDeviceAddress(i);
-    LOG_I(TAG, "sensor address [%d] : %s",i , deviceAddrStr.c_str() );
-    if ( deviceAddrStr == insideThermometerAddress ) {
-      PM_TemperatureSensors.addDevice(insideThermometerName, insideThermometerAddress);
-    } else if (deviceAddrStr == outsideThermometerAddress) {
-      PM_TemperatureSensors.addDevice(outsideThermometerName, outsideThermometerAddress);
-    } else if (deviceAddrStr == waterThermometerAddress) {
-      PM_TemperatureSensors.addDevice(waterThermometerName, waterThermometerAddress);
-    } else {
-      LOG_I(TAG, "Unknown temperature sensor found. Its address is: %s",deviceAddrStr.c_str());
-    }
-  }
-  
+  // Initialize PIDs
+  pm_measures.pHPIDwindowStartTime  = millis();
+  pm_measures.OrpPIDwindowStartTime = millis();
+
+  // Limit the PIDs output range in order to limit max. pumps runtime (safety first...)
+  pHPID.SetTunings(pm_measures.pH_Kp, pm_measures.pH_Ki, pm_measures.pH_Kd);
+  pHPID.SetControllerDirection(pHPID_DIRECTION);
+  pHPID.SetSampleTime((int)pm_measures.pHPIDWindowSize);
+  pHPID.SetOutputLimits(0, pm_measures.pHPIDWindowSize);    //Whatever happens, don't allow continuous injection of Acid for more than a PID Window
+
+  OrpPID.SetTunings(pm_measures.Orp_Kp, pm_measures.Orp_Ki, pm_measures.Orp_Kd);
+  OrpPID.SetControllerDirection(OrpPID_DIRECTION);
+  OrpPID.SetSampleTime((int)pm_measures.OrpPIDWindowSize);
+  OrpPID.SetOutputLimits(0, pm_measures.OrpPIDWindowSize);  //Whatever happens, don't allow continuous injection of Chl for more than a PID Window
+
+ // PIDs off at start
+  PM_SetpHPID (false);
+  PM_SetOrpPID(false);
+
+  //Initialize pump instances with stored config data
+  FiltrationPump.SetMaxUpTime(0);     //no runtime limit for the filtration pump
+
+  PhPump.SetFlowRate(pm_measures.pHMinusFlowRate);
+  PhPump.SetTankVolume(pm_measures.pHMinusTankVolume);
+  PhPump.SetTankFill(pm_measures.pHMinusTankFill);
+  PhPump.SetMaxUpTime(pm_measures.pHPumpUpTimeLimit * 1000);
+
+  ChlPump.SetFlowRate(pm_measures.ChlorineFlowRate);
+  ChlPump.SetTankVolume(pm_measures.ChlorineTankVolume);
+  ChlPump.SetTankFill(pm_measures.ChlorineTankFill);
+  ChlPump.SetMaxUpTime(pm_measures.OrpPumpUpTimeLimit * 1000);
+
+  // Start filtration pump at power-on if within scheduled time slots -- You can choose not to do this and start pump manually
+  PM_CalculateNextFiltrationPeriods();
+  if (pm_measures.AutoMode && (now >= pm_measures.FiltrationStartTime) && (now < pm_measures.FiltrationEndTime))
+    FiltrationPump.Start();
+  else FiltrationPump.Stop();
+
   // Create tasks
   //                          Function           Name          Stack  Param PRIO  Handle                core
   //xTaskCreatePinnedToCore(PM_Task_Main,      "Task_Main",      10000, NULL, 10, &Task_Main_Handle,      0);
@@ -389,7 +485,6 @@ void PM_Task_GPIO      ( void *pvParameters ) {
   }
 
 }
-
 // =================================================================================================
 //                              DISPLAY BUTTON INTERRUPTION MANAGEMENT
 // =================================================================================================
@@ -401,8 +496,6 @@ void IRAM_ATTR PM_DisplayButton_ISR() {
   }
   PM_DisplayButton_LastPressed = millis();
 }
-
-
 // =================================================================================================
 //                              SCREEN DEFINITIONS
 // =================================================================================================
@@ -433,7 +526,6 @@ void PM_Display_init    () {
 
   lcd.printScreen(screen);
 }
-
 /*  
    |--------------------|
    |         1         2|
@@ -464,7 +556,6 @@ void PM_Display_screen_0(PM_SwimmingPoolMeasures_str & measures) {
 
   lcd.printScreen(screen);
 }
-
 /*
    |--------------------|
    |         1         2|
@@ -490,7 +581,6 @@ void PM_Display_screen_1(PM_SwimmingPoolMeasures_str & measures) {
 
   lcd.printScreen(screen);
 }
-
 // =================================================================================================
 //                              BOARD INFO
 // =================================================================================================
@@ -613,42 +703,76 @@ bool PM_NVS_Load() {
 
   // Beware : the key maximum length is only 15 characters
   
-  pm_measures.PMVersion                  = nvs.getUChar("PMVersion"      ,0);
-  pm_measures.Timestamp                  = nvs.getULong("Timestamp"      ,0);
-  pm_measures.InAirTemp                  = nvs.getFloat("InAirTemp"      ,0.0);
-  pm_measures.WaterTemp                  = nvs.getFloat("WaterTemp"      ,0.0);
-  pm_measures.OutAirTemp                 = nvs.getFloat("OutAirTemp"     ,0.0);
-  pm_measures.pH                         = nvs.getFloat("pH"             ,0.0);
-  pm_measures.Chlorine                   = nvs.getUInt ("Chlorine"       ,0);
-  pm_measures.DayFilterTime              = nvs.getULong("DayFilterTime"  ,0);
-  pm_measures.DayFilterMaxTime           = nvs.getULong("DayFilterMaxTim",0);
-  pm_measures.pHMinusVolume              = nvs.getFloat("pHMinusVolume"  ,0.0);
-  pm_measures.ChlorineVolume             = nvs.getFloat("ChlorineVolume" ,0.0);
-  pm_measures.ConsumedInstantaneousPower = nvs.getUInt ("InstantConsPwr" ,0);
-  pm_measures.DayConsumedPower           = nvs.getUInt ("DayConsumedPwr" ,0);
-  pm_measures.Pressure                   = nvs.getFloat("Pressure"       ,0.0);
-  pm_measures.FilterPumpState            = nvs.getBool ("FilterPumpOn"   , false);
-  pm_measures.pHMinusPumpState           = nvs.getBool ("pHMinusPumpOn"  , false);
-  pm_measures.ChlorinePumpState          = nvs.getBool ("ChlorinePumpOn" , false);
-  pm_measures.pHMinusTankVolume          = nvs.getFloat("pHMinusTankVol" ,0.0);
-  pm_measures.ChlorineTankVolume         = nvs.getFloat("ChlorineTankVol",0.0);
+  pm_measures.PMVersion                  = nvs.getUChar ("PMVersion"      ,0);
+  pm_measures.Timestamp                  = nvs.getULong ("Timestamp"      ,0);
+  pm_measures.AutoMode                   = nvs.getBool  ("AutoMode"       ,true);
+  pm_measures.WinterMode                 = nvs.getBool  ("WinterMode"     ,false);
+  pm_measures.InAirTemp                  = nvs.getFloat ("InAirTemp"      ,0.0);
+  pm_measures.WaterTemp                  = nvs.getFloat ("WaterTemp"      ,0.0);
+  pm_measures.OutAirTemp                 = nvs.getFloat ("OutAirTemp"     ,0.0);
+  pm_measures.pH_RegulationOnOff         = nvs.getBool  ("pHRegulationOn" ,false);
+  pm_measures.pHValue                    = nvs.getDouble("pHValue"        ,0.0);
+  pm_measures.pHPIDWindowSize            = nvs.getULong ("pHPIDWindowSize",0);
+  pm_measures.pHPIDwindowStartTime       = nvs.getULong ("pHPIDStartTime" ,0);
+  pm_measures.pHPumpUpTimeLimit          = nvs.getULong ("pHPumpUpTimeL"  ,0);
+  pm_measures.pHPIDOutput                = nvs.getDouble("pHPIDOutput"    ,0.0);
+  pm_measures.pH_SetPoint                = nvs.getDouble("pH_SetPoint"    ,0.0);
+  pm_measures.pH_Kp                      = nvs.getDouble("pH_Kp"          ,0.0);
+  pm_measures.pH_Ki                      = nvs.getDouble("pH_Ki"          ,0.0);
+  pm_measures.pH_Kd                      = nvs.getDouble("pH_Kd"          ,0.0);
+  pm_measures.Orp_RegulationOnOff        = nvs.getBool  ("OrpRegulationOn",false);
+  pm_measures.OrpValue                   = nvs.getDouble("OrpValue"       ,0);
+  pm_measures.OrpPIDWindowSize           = nvs.getULong ("OrpPIDWindowSiz",0);
+  pm_measures.OrpPIDwindowStartTime      = nvs.getULong ("OrpPIDStartTime",0);
+  pm_measures.OrpPumpUpTimeLimit         = nvs.getULong ("OrpPumpUpTimeL" ,0);
+  pm_measures.OrpPIDOutput               = nvs.getDouble("OrpPIDOutput"   ,0.0);
+  pm_measures.Orp_SetPoint               = nvs.getDouble("Orp_SetPoint"   ,0.0);
+  pm_measures.Orp_Kp                     = nvs.getDouble("Orp_Kp"         ,0.0);
+  pm_measures.Orp_Ki                     = nvs.getDouble("Orp_Ki"         ,0.0);
+  pm_measures.Orp_Kd                     = nvs.getDouble("Orp_Kd"         ,0.0);
+  pm_measures.FilteredDuration           = nvs.getULong ("FiltDuration"   ,0);
+  pm_measures.DayFiltrationDuration      = nvs.getULong ("DayFiltDuration",0);
+  pm_measures.FiltrationStartTime        = nvs.getULong ("FiltraStartTime",0);
+  pm_measures.FiltrationEndTime          = nvs.getULong ("FiltraEndTime"  ,0);
+  pm_measures.pHMinusFlowRate            = nvs.getFloat ("pHMinusFlowRate",0.0);
+  pm_measures.ChlorineFlowRate           = nvs.getFloat ("ChlorinFlowRate",0.0);
+  pm_measures.pHMinusVolume              = nvs.getFloat ("pHMinusVolume"  ,0.0);
+  pm_measures.ChlorineVolume             = nvs.getFloat ("ChlorineVolume" ,0.0);
+  pm_measures.ConsumedInstantaneousPower = nvs.getUInt  ("InstantConsPwr" ,0);
+  pm_measures.DayConsumedPower           = nvs.getUInt  ("DayConsumedPwr" ,0);
+  pm_measures.Pressure                   = nvs.getFloat ("Pressure"       ,0.0);
+  pm_measures.FilterPumpState            = nvs.getBool  ("FilterPumpOn"   ,false);
+  pm_measures.pHMinusPumpState           = nvs.getBool  ("pHMinusPumpOn"  ,false);
+  pm_measures.ChlorinePumpState          = nvs.getBool  ("ChlorinePumpOn" ,false);
+  pm_measures.pHMinusTankVolume          = nvs.getFloat ("pHMinusTankVol" ,0.0);
+  pm_measures.ChlorineTankVolume         = nvs.getFloat ("ChlorineTankVol",0.0);
+  pm_measures.pHMinusTankFill            = nvs.getFloat ("pHMinusTankFill",0.0);
+  pm_measures.ChlorineTankFill           = nvs.getFloat ("ChlorinTankFill",0.0);
 
   nvs.end();
 
   LOG_D(TAG, "%d", pm_measures.PMVersion);
   LOG_D(TAG, "%d", pm_measures.Timestamp);
-  LOG_D(TAG, "%d, %d, %d", pm_measures.InAirTemp, pm_measures.WaterTemp,pm_measures.OutAirTemp);
-  LOG_D(TAG, "%2.2f, %d", pm_measures.pH, pm_measures.Chlorine);
-  LOG_D(TAG, "%d, %d", pm_measures.DayFilterTime, pm_measures.DayFilterMaxTime);
+  LOG_D(TAG, "%d, %d, %d, %d", pm_measures.AutoMode, pm_measures.WinterMode, pm_measures.pH_RegulationOnOff, pm_measures.Orp_RegulationOnOff);
+  LOG_D(TAG, "%2.2f, %2.2f, %2.2f", pm_measures.InAirTemp, pm_measures.WaterTemp,pm_measures.OutAirTemp);
+  LOG_D(TAG, "%2.2f, %4.0f", pm_measures.pHValue, pm_measures.OrpValue);
+  LOG_D(TAG, "%d, %d", pm_measures.pHPIDWindowSize, pm_measures.OrpPIDWindowSize);
+  LOG_D(TAG, "%d, %d", pm_measures.pHPIDwindowStartTime, pm_measures.OrpPIDwindowStartTime);
+  LOG_D(TAG, "%d, %d", pm_measures.pHPumpUpTimeLimit, pm_measures.OrpPumpUpTimeLimit);
+  LOG_D(TAG, "%4.0f, %4.0f, %8.0f, %3.0f, %3.0f", pm_measures.pHPIDOutput, pm_measures.pH_SetPoint, pm_measures.pH_Kp, pm_measures.pH_Ki, pm_measures.pH_Kd);
+  LOG_D(TAG, "%4.0f, %4.0f, %8.0f, %3.0f, %3.0f", pm_measures.OrpPIDOutput, pm_measures.Orp_SetPoint, pm_measures.Orp_Kp, pm_measures.Orp_Ki, pm_measures.Orp_Kd);
+  LOG_D(TAG, "%d, %d", pm_measures.FilteredDuration, pm_measures.DayFiltrationDuration);
+  LOG_D(TAG, "%d, %d", pm_measures.FiltrationStartTime, pm_measures.FiltrationEndTime);
+  LOG_D(TAG, "%2.2f, %2.2f", pm_measures.pHMinusFlowRate, pm_measures.ChlorineFlowRate);
   LOG_D(TAG, "%2.2f, %2.2f", pm_measures.pHMinusVolume, pm_measures.ChlorineVolume);
   LOG_D(TAG, "%d, %d", pm_measures.ConsumedInstantaneousPower, pm_measures.DayConsumedPower);
   LOG_D(TAG, "%2.2f", pm_measures.Pressure);
   LOG_D(TAG, "%d, %d, %d", pm_measures.FilterPumpState, pm_measures.pHMinusPumpState, pm_measures.ChlorinePumpState);
   LOG_D(TAG, "%2.2f, %2.2f", pm_measures.pHMinusTankVolume, pm_measures.ChlorineTankVolume);
+  LOG_D(TAG, "%2.2f, %2.2f", pm_measures.pHMinusTankFill, pm_measures.ChlorineTankFill);
 
   return (pm_measures.PMVersion == PM_VERSION);
 }
-
 // =================================================================================================
 //                           SAVE MEASURES TO STORAGE
 // =================================================================================================
@@ -660,29 +784,149 @@ bool PM_NVS_Save() {
   // Beware : the key maximum length is only 15 characters
 
   size_t i = 
-       nvs.putUChar("PMVersion",       pm_measures.PMVersion);
-  i += nvs.putULong("Timestamp",       now);
-  i += nvs.putFloat("InAirTemp",       pm_measures.InAirTemp);
-  i += nvs.putFloat("WaterTemp",       pm_measures.WaterTemp);
-  i += nvs.putFloat("OutAirTemp",      pm_measures.OutAirTemp);
-  i += nvs.putFloat("pH",              pm_measures.pH);
-  i += nvs.putUInt ("Chlorine",        pm_measures.Chlorine);
-  i += nvs.putULong("DayFilterTime",   pm_measures.DayFilterTime);
-  i += nvs.putULong("DayFilterMaxTim", pm_measures.DayFilterMaxTime);
-  i += nvs.putFloat("pHMinusVolume",   pm_measures.pHMinusVolume);
-  i += nvs.putFloat("ChlorineVolume",  pm_measures.ChlorineVolume);
-  i += nvs.putUInt ("InstantConsPwr",  pm_measures.ConsumedInstantaneousPower);
-  i += nvs.putUInt ("DayConsumedPwr",  pm_measures.DayConsumedPower);
-  i += nvs.putFloat("Pressure",        pm_measures.Pressure);
-  i += nvs.putBool ("FilterPumpOn",    pm_measures.FilterPumpState);
-  i += nvs.putBool ("pHMinusPumpOn",   pm_measures.pHMinusPumpState);
-  i += nvs.putBool ("ChlorinePumpOn",  pm_measures.ChlorinePumpState);
-  i += nvs.putFloat("pHMinusTankVol",  pm_measures.pHMinusTankVolume);
-  i += nvs.putFloat("ChlorineTankVol", pm_measures.ChlorineTankVolume);
+       nvs.putUChar ("PMVersion",       pm_measures.PMVersion);
+  i += nvs.putULong ("Timestamp",       now);
+  i += nvs.putBool  ("AutoMode",        pm_measures.AutoMode);
+  i += nvs.putBool  ("WinterMode",      pm_measures.WinterMode);
+  i += nvs.putFloat ("InAirTemp",       pm_measures.InAirTemp);
+  i += nvs.putFloat ("WaterTemp",       pm_measures.WaterTemp);
+  i += nvs.putFloat ("OutAirTemp",      pm_measures.OutAirTemp);
+  i += nvs.putBool  ("pHRegulationOn",  pm_measures.pH_RegulationOnOff);
+  i += nvs.putDouble("pHValue",         pm_measures.pHValue);
+  i += nvs.putULong ("pHPIDWindowSize", pm_measures.pHPIDWindowSize);
+  i += nvs.putULong ("pHPIDStartTime",  pm_measures.pHPIDwindowStartTime);
+  i += nvs.putULong ("pHPumpUpTimeL",   pm_measures.pHPumpUpTimeLimit);
+  i += nvs.putDouble("pHPIDOutput",     pm_measures.pHPIDOutput);
+  i += nvs.putDouble("pH_SetPoint",     pm_measures.pH_SetPoint);
+  i += nvs.putDouble("pH_Kp",           pm_measures.pH_Kp);
+  i += nvs.putDouble("pH_Ki",           pm_measures.pH_Ki);
+  i += nvs.putDouble("pH_Kd",           pm_measures.pH_Kd);
+  i += nvs.putBool  ("OrpRegulationOn", pm_measures.Orp_RegulationOnOff);
+  i += nvs.putDouble("OrpValue",        pm_measures.OrpValue);
+  i += nvs.putULong ("OrpPIDWindowSiz", pm_measures.OrpPIDWindowSize);
+  i += nvs.putULong ("OrpPIDStartTime", pm_measures.OrpPIDwindowStartTime);
+  i += nvs.putULong ("OrpPumpUpTimeL",  pm_measures.OrpPumpUpTimeLimit);
+  i += nvs.putDouble("OrpPIDOutput",    pm_measures.OrpPIDOutput);
+  i += nvs.putDouble("Orp_SetPoint",    pm_measures.Orp_SetPoint);
+  i += nvs.putDouble("Orp_Kp",          pm_measures.Orp_Kp);
+  i += nvs.putDouble("Orp_Ki",          pm_measures.Orp_Ki);
+  i += nvs.putDouble("Orp_Kd",          pm_measures.Orp_Kd);
+  i += nvs.putULong ("FiltDuration",    pm_measures.FilteredDuration);
+  i += nvs.putULong ("DayFiltDuration", pm_measures.DayFiltrationDuration);
+  i += nvs.putULong ("FiltraStartTime", pm_measures.FiltrationStartTime);
+  i += nvs.putULong ("FiltraEndTime",   pm_measures.FiltrationEndTime);
+  i += nvs.putFloat ("pHMinusFlowRate", pm_measures.pHMinusFlowRate);
+  i += nvs.putFloat ("ChlorinFlowRate", pm_measures.ChlorineFlowRate);
+  i += nvs.putFloat ("pHMinusVolume",   pm_measures.pHMinusVolume);
+  i += nvs.putFloat ("ChlorineVolume",  pm_measures.ChlorineVolume);
+  i += nvs.putUInt  ("InstantConsPwr",  pm_measures.ConsumedInstantaneousPower);
+  i += nvs.putUInt  ("DayConsumedPwr",  pm_measures.DayConsumedPower);
+  i += nvs.putFloat ("Pressure",        pm_measures.Pressure);
+  i += nvs.putBool  ("FilterPumpOn",    pm_measures.FilterPumpState);
+  i += nvs.putBool  ("pHMinusPumpOn",   pm_measures.pHMinusPumpState);
+  i += nvs.putBool  ("ChlorinePumpOn",  pm_measures.ChlorinePumpState);
+  i += nvs.putFloat ("pHMinusTankVol",  pm_measures.pHMinusTankVolume);
+  i += nvs.putFloat ("ChlorineTankVol", pm_measures.ChlorineTankVolume);
+  i += nvs.putFloat ("pHMinusTankFill", pm_measures.pHMinusTankFill);
+  i += nvs.putFloat ("ChlorinTankFill", pm_measures.ChlorineTankFill);
 
   nvs.end();
 
   LOG_D(TAG, "Bytes stored in NVS: %d / %d", i, sizeof(pm_measures));
 
   return (i == sizeof(pm_measures));
+}
+// =================================================================================================
+//                           INITIALIZE TEMPERATURE SENSORS
+// =================================================================================================
+void PM_Temperature_Init() {
+  
+  // Declare temperature sensors
+  PM_TemperatureSensors.init(temperatureSensors);
+  int tempSensorsNumber = PM_TemperatureSensors.getDeviceCount();
+  LOG_I(TAG, "%d temperature sensors found",tempSensorsNumber);
+
+  for (int i = 0; i< tempSensorsNumber; i++){
+    std::string deviceAddrStr = PM_TemperatureSensors.getDeviceAddress(i);
+    LOG_I(TAG, "sensor address [%d] : %s",i , deviceAddrStr.c_str() );
+    if ( deviceAddrStr == insideThermometerAddress ) {
+      PM_TemperatureSensors.addDevice(insideThermometerName, insideThermometerAddress);
+    } else if (deviceAddrStr == outsideThermometerAddress) {
+      PM_TemperatureSensors.addDevice(outsideThermometerName, outsideThermometerAddress);
+    } else if (deviceAddrStr == waterThermometerAddress) {
+      PM_TemperatureSensors.addDevice(waterThermometerName, waterThermometerAddress);
+    } else {
+      LOG_I(TAG, "Unknown temperature sensor found. Its address is: %s",deviceAddrStr.c_str());
+    }
+  }
+}
+
+// =================================================================================================
+//                           INITIALIZE pH PID
+// =================================================================================================
+//Enable/Disable Chl PID
+void PM_SetpHPID(bool Enable)
+{
+  if (Enable)
+  {
+    //Start pHPID
+    PhPump.ClearErrors();
+    pm_measures.pHPIDOutput = 0.0;
+    pm_measures.pHPIDwindowStartTime = millis();
+    pHPID.SetMode(AUTOMATIC);
+    pm_measures.pH_RegulationOnOff = 1;
+  }
+  else
+  {
+    //Stop pHPID
+    pHPID.SetMode(MANUAL);
+    pm_measures.pH_RegulationOnOff = 0;
+    pm_measures.pHPIDOutput = 0.0;
+    PhPump.Stop();
+  }
+}
+// =================================================================================================
+//                           INITIALIZE Orp PID
+// =================================================================================================
+//Enable/Disable Orp PID
+void PM_SetOrpPID(bool Enable)
+{
+  if (Enable)
+  {
+    //Start OrpPID
+    ChlPump.ClearErrors();
+    pm_measures.OrpPIDOutput = 0.0;
+    pm_measures.OrpPIDwindowStartTime = millis();
+    OrpPID.SetMode(AUTOMATIC);
+    pm_measures.Orp_RegulationOnOff = 1;
+
+  }
+  else
+  {
+    //Stop OrpPID
+    OrpPID.SetMode(MANUAL);
+    pm_measures.Orp_RegulationOnOff = 0;
+    pm_measures.OrpPIDOutput = 0.0;
+    ChlPump.Stop();
+  }
+}
+// =================================================================================================
+//                         CALCULATE FILTRATION PERIODS OF THE DAY
+// =================================================================================================
+void PM_CalculateNextFiltrationPeriods() {
+
+  if (pm_measures.DayFiltrationDuration == 0 ) {
+    // calculate the filtration duration depending on the water temperature
+    pm_measures.DayFiltrationDuration = Pool_Configuration.GetFiltrationDuration(pm_measures.WaterTemp);
+  }
+  LOG_I(TAG, "Water temperature: %6.2f", pm_measures.WaterTemp);
+  LOG_I(TAG, "Filtration duration for this day: %d", pm_measures.DayFiltrationDuration);
+  
+  if (pm_measures.FilteredDuration <= pm_measures.DayFiltrationDuration) {
+    Pool_Configuration.NextFiltrationPeriod (pm_measures.FiltrationStartTime, pm_measures.FiltrationEndTime, pm_measures.FilteredDuration, pm_measures.DayFiltrationDuration);
+  }
+
+  LOG_I(TAG, "Next Filtration period is:");
+  LOG_I(TAG, "- next start time (s): %u", pm_measures.FiltrationStartTime);
+  LOG_I(TAG, "- next end time   (s): %u", pm_measures.FiltrationEndTime);
 }

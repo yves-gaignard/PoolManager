@@ -66,6 +66,11 @@ const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 
 #define ONE_WIRE_BUS 4 
 #define TEMPERATURE_PRECISION 9
 
+// Pump management GPIO
+#define FILTRATION_PUMP 32
+#define PH_PUMP         14
+#define CHL_PUMP        12
+
 // =========================================================================================================
 //                                     Software parameters
 // =========================================================================================================

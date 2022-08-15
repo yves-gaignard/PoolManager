@@ -105,6 +105,9 @@ static std::vector<PM_FiltrationPeriod> PM_FiltrationPeriod_Abaqus = {
 const float PM_pH_Min = 7.4;
 const float PM_pH_Max = 7.8;
 
+// PID Directions (either DIRECT or REVERSE depending on Ph/Orp correction vs water properties)
+#define pHPID_DIRECTION REVERSE
+
 // ------------------------------------------------------------
 // ORP ( Oxidation-reduction potential)
 // ------------------------------------------------------------
@@ -119,6 +122,9 @@ const float PM_pH_Max = 7.8;
 const int PM_ORP_Min = 450;
 const int PM_ORP_Max = 750;
 
+// PID Directions (either DIRECT or REVERSE depending on Ph/Orp correction vs water properties)
+#define OrpPID_DIRECTION DIRECT
+
 // ------------------------------------------------------------
 // Pressure in the filtration circuit
 // ------------------------------------------------------------
@@ -132,6 +138,20 @@ const int PM_ORP_Max = 750;
 // 2. **PM_Pressure_Max** (in hPa) for trigerring an alert for over-pressure on the system.
 const float PM_Pressure_Min = 0.5;
 const float PM_Pressure_Max = 2.0;
+
+// ------------------------------------------------------------
+// Peristaltic Pump characteristics 
+// ------------------------------------------------------------
+// As each injection peristaltic pump has each own characteristics, provide their flow rate (l/h)
+const float PM_pH_Pump_Flow_Rate = 1.5;       // Units: liter / hours
+const float PM_Chlorine_Pump_Flow_Rate = 1.5; // Units: liter / hours
+
+// ------------------------------------------------------------
+// ph and Chlorine tank characteristics 
+// ------------------------------------------------------------
+// As each injection peristaltic pump has each own characteristics, provide their flow rate (l/h)
+const float PM_pH_Tank_Volume = 20.0;       // Units: liter
+const float PM_Chlorine_Tank_Volume = 20.0; // Units: liter
 
 // ========================================================================================================
 // End of customization
@@ -159,7 +179,13 @@ class PM_Config {
 
     // Verify that the abaqus describing the filtration period is valid
     PM_Error CheckFiltrationPeriodAbaqus();
-  
+
+    // Get filtration duration depending on the temperature
+    int GetFiltrationDuration (float waterTemperature);
+
+    // Calculate next period of filtration
+    void NextFiltrationPeriod (time_t &NextStartTime, time_t &NextEndTime, const ulong FiltrationDone, const ulong FiltrationDuration);
+
 };
 
 #endif
