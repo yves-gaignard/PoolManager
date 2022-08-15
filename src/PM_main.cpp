@@ -17,6 +17,7 @@
 #include <OneWire.h>               // Library for onewire devices
 #include <DallasTemperature.h>     // Library for temperature sensors
 #include <RTClib.h>                // Library for time management on RTC DS3231
+#include <Preferences.h>           // Library for preference storage maangement
 
 // Project definitions
 #include "PM_Pool_Manager.h"       // Pool manager constant declarations
@@ -29,12 +30,12 @@
 #include "PM_Wifi.h"               // Pool manager wifi management
 #include "PM_OTA_Web_Srv.h"        // Pool manager web server management
 #include "PM_LCD.h"                // Pool manager display device management
-#include "PM_Pool_Config.h"        // Pool manager configuration parameters
+#include "PM_Config.h"        // Pool manager configuration parameters
 #include "PM_Error.h"              // Pool manager error management
 #include "PM_Utils.h"              // Pool manager utilities
 
 // Intantiate the Pool Manager configuration
-static PM_Pool_Config Pool_Configuration;
+static PM_Config Pool_Configuration;
 
 // Array of I2C Devices
 static byte I2CDevices[128];
@@ -42,6 +43,9 @@ static byte I2CDevices[128];
 // Instantiate LCD display and a screen template
 PM_LCD lcd(PM_LCD_Device_Addr, PM_LCD_Cols, PM_LCD_Rows);
 std::vector<std::string> screen;
+
+// NVS Non Volatile SRAM (eqv. EEPROM)
+Preferences nvs;   
 
 // To manage the connection on Wifi
 boolean IsWifiConnected   = false;
@@ -63,8 +67,8 @@ int     PM_Display_Screen_Number=2;               // Total screen number
 boolean PM_Display_Activation_Request=true;       // Request to activate the display
 
 // swimming pool measures
-PM_SwimmingPoolMeasures     pm_measures     = { 0.0,  0.0,  0.0,   0.0,     0,   450,   750,      0,       0  , 0.0,     0.0,     0,      0,     0.0, false, false, false,   0.0,    0.0  }; 
-PM_SwimmingPoolMeasures_str pm_measures_str = { "00", "00", "00", "0.0", "000", "450", "750", "00h00", "00h00","00.0", "00.0", "0000", "0000", "0000", "OFF", "OFF", "OFF", "00.0", "00.0" }; 
+PM_SwimmingPoolMeasures     pm_measures     = { PM_VERSION, now, 0.0,  0.0,  0.0,   0.0,     0,      0,       0  , 0.0,     0.0,     0,      0,     0.0, false, false, false,   0.0,    0.0  }; 
+PM_SwimmingPoolMeasures_str pm_measures_str = {             "0", "00", "00", "00", "0.0", "000", "00h00", "00h00","00.0", "00.0", "0000", "0000", "0000", "OFF", "OFF", "OFF", "00.0", "00.0" }; 
 
 
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
@@ -91,9 +95,14 @@ void PM_Task_WebServer ( void *pvParameters );
 void PM_Task_GPIO      ( void *pvParameters );
 
 // function declarations
+void PM_getBoardInfo();
+void PM_Time_Init();
 void PM_Display_init    ();
 void PM_Display_screen_0(PM_SwimmingPoolMeasures_str & measures);
 void PM_Display_screen_1(PM_SwimmingPoolMeasures_str & measures);
+bool PM_NVS_Init();
+bool PM_NVS_Load();
+bool PM_NVS_Save();
 
 // Button declarations
 boolean PM_DisplayButton_State = false;    // Current State
@@ -116,15 +125,17 @@ void setup() {
   Log.setTag("PM_I2CScan"    , LOG_LEVEL);
   Log.setTag("PM_Log"        , LOG_LEVEL);
   Log.setTag("PM_OTA_Web_Srv", LOG_LEVEL);
-  Log.setTag("PM_Pool_Config", LOG_LEVEL);
+  Log.setTag("PM_Config",      LOG_LEVEL);
   Log.setTag("PM_Temperature", LOG_LEVEL);
   Log.setTag("PM_Time_Mngt"  , LOG_LEVEL);
   Log.setTag("PM_Wifi"       , LOG_LEVEL);
 
   // Log.formatTimestampOff(); // time in milliseconds (if necessary)
-
   LOG_I(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
 
+  // Print the information of the board
+  PM_getBoardInfo();
+  
   //Init LCD
   PM_Display_init();
   
@@ -140,56 +151,10 @@ void setup() {
     delay(100);
   }
 
-  // Initialize the time
-  // ------------------------
-  boolean isRTCFound     = true;
-  boolean isRTCLostPower = true;
-  DateTime DT_now;
-  std::string DT_now_str;
+  // Time initialization
+  // --------------------
+  PM_Time_Init();
 
-  // check if a RTC module is connected
-  if (! rtc.begin()) {
-    LOG_E(TAG, "Cannot find any RTC device. Time will be initialized through a NTP server");
-    isRTCFound = false;
-  } else {
-    isRTCLostPower=rtc.lostPower();   
-  }
-
-  // If there is no RTC module or if it lost its power, set the time with the NTP time
-  if (isRTCLostPower == true ) {
-    LOG_I(TAG, "RTC has lost power. Initialize time with NTP server");
-    // Initialize time from NTP server
-    PM_Time_Mngt_initialize_time();
-
-    // if there is a RTC module, reinitialize it with the NTP time
-    if (isRTCFound == true) {
-      // Get current time
-      time(&now);
-      // adjust time of rtc with the time get from NTP server
-      DT_now = DateTime(now);
-      char DT_now_format[20]= "YYYY-MM-DD hh:mm:ss";
-      DT_now_str = DT_now.toString(DT_now_format);
-      LOG_I(TAG, "Adjust the time of RTC with the NTP time: %s", DT_now_str.c_str() );
-      rtc.adjust(DT_now);
-    }
-  }
-  
-  // if there is a RTC module, set the time with RTC time
-  if (isRTCFound == true) {
-    // set time with the RTC time
-    DT_now = rtc.now();
-    char DT_now_format[20]= "YYYY-MM-DD hh:mm:ss";
-    DT_now_str = DT_now.toString(DT_now_format);
-    LOG_I(TAG, "Get the time from RTC: %s", DT_now_str.c_str() );
-    // set the time
-    now = DT_now.unixtime();
-    LOG_I(TAG, "rtc.now = %u", now );
-    timeval tv = {now, 0}; 
-    timezone tz = {0,0} ;
-    int ret = settimeofday(&tv, &tz);
-    if ( ret != 0 ) {LOG_E(TAG, "Cannot set time from RTC" ); };
-  }
-  
   // Get current time
   // ------------------
   char timestamp_str[20];
@@ -200,6 +165,9 @@ void setup() {
   // Start of diaplaying information
   PM_Display_Activation_Start=now;
   
+  // Initialize NVS data 
+  if (PM_NVS_Init()) LOG_I(TAG, "Error on NVS initialization phase. See traces");
+
   // start Web Server
   PM_OTA_Web_Srv_setup();
   
@@ -521,4 +489,200 @@ void PM_Display_screen_1(PM_SwimmingPoolMeasures_str & measures) {
   screen[3] = "Max PH-:"+measures.pHMinusMaxVolume_str+" Cl:"+measures.ChlorineMaxVolume_str;
 
   lcd.printScreen(screen);
+}
+
+// =================================================================================================
+//                              BOARD INFO
+// =================================================================================================
+void PM_getBoardInfo(){
+  esp_chip_info_t out_info;
+  esp_chip_info(&out_info);
+  LOG_I(TAG,"Board info");
+  LOG_I(TAG,"CPU frequency       : %dMHz",ESP.getCpuFreqMHz());
+  LOG_I(TAG,"CPU Cores           : %d",out_info.cores);
+  LOG_I(TAG,"Flash size          : %dMB",ESP.getFlashChipSize()/1000000);
+  LOG_I(TAG,"Free RAM            : %d bytes",ESP.getFreeHeap());
+  LOG_I(TAG,"Min heap            : %d bytes",esp_get_free_heap_size());
+  LOG_I(TAG,"tskIDLE_PRIORITY    : %d",tskIDLE_PRIORITY);
+  LOG_I(TAG,"confixMAX_PRIORITIES: %d",configMAX_PRIORITIES);
+  LOG_I(TAG,"configTICK_RATE_HZ  : %d",configTICK_RATE_HZ);
+}
+// =================================================================================================
+//                              TIME INITIALIZATION
+// =================================================================================================
+void PM_Time_Init() {
+
+  // Initialize the time
+  // ------------------------
+  boolean isRTCFound     = true;
+  boolean isRTCLostPower = true;
+  DateTime DT_now;
+  std::string DT_now_str;
+
+  // check if a RTC module is connected
+  if (! rtc.begin()) {
+    LOG_E(TAG, "Cannot find any RTC device. Time will be initialized through a NTP server");
+    isRTCFound = false;
+  } else {
+    isRTCLostPower=rtc.lostPower();   
+  }
+
+  // If there is no RTC module or if it lost its power, set the time with the NTP time
+  if (isRTCLostPower == true ) {
+    LOG_I(TAG, "RTC has lost power. Initialize time with NTP server");
+    // Initialize time from NTP server
+    PM_Time_Mngt_initialize_time();
+
+    // if there is a RTC module, reinitialize it with the NTP time
+    if (isRTCFound == true) {
+      // Get current time
+      time(&now);
+      // adjust time of rtc with the time get from NTP server
+      DT_now = DateTime(now);
+      char DT_now_format[20]= "YYYY-MM-DD hh:mm:ss";
+      DT_now_str = DT_now.toString(DT_now_format);
+      LOG_I(TAG, "Adjust the time of RTC with the NTP time: %s", DT_now_str.c_str() );
+      rtc.adjust(DT_now);
+    }
+  }
+  
+  // if there is a RTC module, set the time with RTC time
+  if (isRTCFound == true) {
+    // set time with the RTC time
+    DT_now = rtc.now();
+    char DT_now_format[20]= "YYYY-MM-DD hh:mm:ss";
+    DT_now_str = DT_now.toString(DT_now_format);
+    LOG_I(TAG, "Get the time from RTC: %s", DT_now_str.c_str() );
+    // set the time
+    now = DT_now.unixtime();
+    LOG_I(TAG, "rtc.now = %u", now );
+    timeval tv = {now, 0}; 
+    timezone tz = {0,0} ;
+    int ret = settimeofday(&tv, &tz);
+    if ( ret != 0 ) {LOG_E(TAG, "Cannot set time from RTC" ); };
+  }
+}
+// =================================================================================================
+//                           MEASURES INITIALIZATION FROM STORAGE
+// =================================================================================================
+bool PM_NVS_Init() {
+  bool rc = false;
+  
+  //Read ConfigVersion. If does not match expected value, restore default values
+  if(nvs.begin(Project.Name.c_str(),true))
+  {
+    uint8_t vers = nvs.getUChar("PMVersion",0);
+    LOG_I(TAG, "Stored version: %d",vers);
+
+    nvs.end();
+
+    if (vers == PM_VERSION)
+    {
+      LOG_I(TAG, "Same version: %d / %d. Loading settings from NVS",vers,PM_VERSION);
+      if(PM_NVS_Load()) {
+        rc = true; 
+        LOG_I(TAG, "Data from NVS loaded"); //Restore stored values from NVS
+      }
+    }
+    else
+    {
+      LOG_I(TAG, "New version: %d / %d. Store new default settings",vers,PM_VERSION);
+      if(PM_NVS_Save()) {
+        rc = true; 
+        LOG_I(TAG, "Default settings stored in NVS");  //First time use. Save new default values to NVS
+      }
+    }
+
+  } else {
+    LOG_E(TAG, "NVS error");
+    nvs.end();
+    LOG_I(TAG, "Version: %d. First saving of settings",PM_VERSION);
+    if(PM_NVS_Save()) {
+      rc = true; 
+      LOG_I(TAG, "Default settings stored in NVS");  //First time use. Save new default values to NVS
+    }
+  }  
+
+  return rc; 
+}
+// =================================================================================================
+//                           LOAD MEASURES FROM STORAGE
+// =================================================================================================
+bool PM_NVS_Load() {
+  nvs.begin(Project.Name.c_str(),true);
+
+  // Beware : the key maximum length is only 15 characters
+  
+  pm_measures.PMVersion                  = nvs.getUChar("PMVersion"      ,0);
+  pm_measures.Timestamp                  = nvs.getULong("Timestamp"      ,0);
+  pm_measures.InAirTemp                  = nvs.getFloat("InAirTemp"      ,0.0);
+  pm_measures.WaterTemp                  = nvs.getFloat("WaterTemp"      ,0.0);
+  pm_measures.OutAirTemp                 = nvs.getFloat("OutAirTemp"     ,0.0);
+  pm_measures.pH                         = nvs.getFloat("pH"             ,0.0);
+  pm_measures.Chlorine                   = nvs.getUInt ("Chlorine"       ,0);
+  pm_measures.DayFilterTime              = nvs.getULong("DayFilterTime"  ,0);
+  pm_measures.DayFilterMaxTime           = nvs.getULong("DayFilterMaxTim",0);
+  pm_measures.pHMinusVolume              = nvs.getFloat("pHMinusVolume"  ,0.0);
+  pm_measures.ChlorineVolume             = nvs.getFloat("ChlorineVolume" ,0.0);
+  pm_measures.ConsumedInstantaneousPower = nvs.getUInt ("InstantConsPwr" ,0);
+  pm_measures.DayConsumedPower           = nvs.getUInt ("DayConsumedPwr" ,0);
+  pm_measures.Pressure                   = nvs.getFloat("Pressure"       ,0.0);
+  pm_measures.FilterPumpState            = nvs.getBool ("FilterPumpOn"   , false);
+  pm_measures.pHMinusPumpState           = nvs.getBool ("pHMinusPumpOn"  , false);
+  pm_measures.ChlorinePumpState          = nvs.getBool ("ChlorinePumpOn" , false);
+  pm_measures.pHMinusTankVolume          = nvs.getFloat("pHMinusTankVol" ,0.0);
+  pm_measures.ChlorineTankVolume         = nvs.getFloat("ChlorineTankVol",0.0);
+
+  nvs.end();
+
+  LOG_D(TAG, "%d", pm_measures.PMVersion);
+  LOG_D(TAG, "%d", pm_measures.Timestamp);
+  LOG_D(TAG, "%d, %d, %d", pm_measures.InAirTemp, pm_measures.WaterTemp,pm_measures.OutAirTemp);
+  LOG_D(TAG, "%2.2f, %d", pm_measures.pH, pm_measures.Chlorine);
+  LOG_D(TAG, "%d, %d", pm_measures.DayFilterTime, pm_measures.DayFilterMaxTime);
+  LOG_D(TAG, "%2.2f, %2.2f", pm_measures.pHMinusVolume, pm_measures.ChlorineVolume);
+  LOG_D(TAG, "%d, %d", pm_measures.ConsumedInstantaneousPower, pm_measures.DayConsumedPower);
+  LOG_D(TAG, "%2.2f", pm_measures.Pressure);
+  LOG_D(TAG, "%d, %d, %d", pm_measures.FilterPumpState, pm_measures.pHMinusPumpState, pm_measures.ChlorinePumpState);
+  LOG_D(TAG, "%2.2f, %2.2f", pm_measures.pHMinusTankVolume, pm_measures.ChlorineTankVolume);
+
+  return (pm_measures.PMVersion == PM_VERSION);
+}
+
+// =================================================================================================
+//                           SAVE MEASURES TO STORAGE
+// =================================================================================================
+bool PM_NVS_Save() {
+
+  localtime(&now);
+  nvs.begin(Project.Name.c_str(),false);
+
+  // Beware : the key maximum length is only 15 characters
+
+  size_t i = 
+       nvs.putUChar("PMVersion",       pm_measures.PMVersion);
+  i += nvs.putULong("Timestamp",       now);
+  i += nvs.putFloat("InAirTemp",       pm_measures.InAirTemp);
+  i += nvs.putFloat("WaterTemp",       pm_measures.WaterTemp);
+  i += nvs.putFloat("OutAirTemp",      pm_measures.OutAirTemp);
+  i += nvs.putFloat("pH",              pm_measures.pH);
+  i += nvs.putUInt ("Chlorine",        pm_measures.Chlorine);
+  i += nvs.putULong("DayFilterTime",   pm_measures.DayFilterTime);
+  i += nvs.putULong("DayFilterMaxTim", pm_measures.DayFilterMaxTime);
+  i += nvs.putFloat("pHMinusVolume",   pm_measures.pHMinusVolume);
+  i += nvs.putFloat("ChlorineVolume",  pm_measures.ChlorineVolume);
+  i += nvs.putUInt ("InstantConsPwr",  pm_measures.ConsumedInstantaneousPower);
+  i += nvs.putUInt ("DayConsumedPwr",  pm_measures.DayConsumedPower);
+  i += nvs.putFloat("Pressure",        pm_measures.Pressure);
+  i += nvs.putBool ("FilterPumpOn",    pm_measures.FilterPumpState);
+  i += nvs.putBool ("pHMinusPumpOn",   pm_measures.pHMinusPumpState);
+  i += nvs.putBool ("ChlorinePumpOn",  pm_measures.ChlorinePumpState);
+  i += nvs.putFloat("pHMinusTankVol",  pm_measures.pHMinusTankVolume);
+  i += nvs.putFloat("ChlorineTankVol", pm_measures.ChlorineTankVolume);
+
+  nvs.end();
+
+  LOG_D(TAG, "Bytes stored in NVS: %d / %d", i, sizeof(pm_measures));
+
+  return (i == sizeof(pm_measures));
 }

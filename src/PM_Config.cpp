@@ -10,16 +10,16 @@
 #include <Arduino.h>
 
 #include "PM_Pool_Manager.h"
-#include "PM_Pool_Config.h"                   // Pool Manager configuration management
+#include "PM_Config.h"                        // Pool Manager configuration management
 #include "PM_Error.h"                         // Pool Manager error management
 #include "PM_Utils.h"                         // Pool Manager utility tools
 
 // Constructor
-PM_Pool_Config::PM_Pool_Config() {
+PM_Config::PM_Config() {
 }
 
 // Verify that the abaqus describing the filtration time is valid
-PM_Error PM_Pool_Config::CheckFiltrationTimeAbaqus() {
+PM_Error PM_Config::CheckFiltrationTimeAbaqus() {
   // Rules to check:
   // R1 : the lowest temperature must be -20 and the highest 99
   // R2 : temperature of the temperature range must be consecutives (aka TempMin of a line must be equal to TempMax of previous line)
@@ -65,7 +65,7 @@ PM_Error PM_Pool_Config::CheckFiltrationTimeAbaqus() {
 
 
 // Verify that the abaqus describing the filtration period is valid
-PM_Error PM_Pool_Config::CheckFiltrationPeriodAbaqus() {
+PM_Error PM_Config::CheckFiltrationPeriodAbaqus() {
   // Rules to check:
   // R1 : The array does not need to be sorted
   // R2 : a period cannot recover another one

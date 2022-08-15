@@ -39,14 +39,15 @@ struct PM_FiltrationPeriod {
   int Priority;  // priority must be greater than 1
 };
 
+#define PM_VERSION 1
 struct PM_SwimmingPoolMeasures {
+  uint8_t PMVersion;                      // version of the structure
+  time_t  Timestamp;                      // Last modification timestamp
   float   InAirTemp;                      // Inside air temperature in °C
   float   WaterTemp;                      // Water temperature in °C of the swimming pool
   float   OutAirTemp;                     // Outside air temperature in °C
   float   pH;                             // pH unit
   int32_t Chlorine;                       // redox measure unit: mV
-  int32_t ChlorineMin;                    // Minimum acceptable redox measure unit: mV
-  int32_t ChlorineMax;                    // Maximuù acceptbble redox measure unit: mV
   time_t  DayFilterTime;                  // Filter Time since the begin of the day
   time_t  DayFilterMaxTime;               // Maximum Filter Time since the begin of the day
   float   pHMinusVolume;                  // Volume of pH Minus liquid since the last complete fill of the container
@@ -57,8 +58,8 @@ struct PM_SwimmingPoolMeasures {
   boolean FilterPumpState;                // State of the filtering pump (true, false)
   boolean pHMinusPumpState;               // State of the pH- pump (true, false)
   boolean ChlorinePumpState;              // State of the pH- pump (true, false)
-  float   pHMinusMaxVolume;               // Volume max of the pH- container
-  float   ChlorineMaxVolume;              // Volume max of the Chlorine container
+  float   pHMinusTankVolume;              // Max volume of the pH- tank
+  float   ChlorineTankVolume;             // Max volume of the Chlorine tank
 };
 
 struct PM_SwimmingPoolMeasures_str {

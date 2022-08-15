@@ -3,8 +3,8 @@
   
   Configuration Parameters of the Pool Manager project
 */
-#ifndef PM_Pool_Config_h
-#define PM_Pool_Config_h
+#ifndef PM_Config_h
+#define PM_Config_h
 
 #include <Arduino.h>
 #include <vector>
@@ -145,14 +145,14 @@ static bool PM_FiltrationPeriod_Start_Cmp(const PM_FiltrationPeriod& lPeriod, co
 //Comparator of PM_FiltrationPeriod on End of the period
 static bool PM_FiltrationPeriod_End_Cmp(const PM_FiltrationPeriod& lPeriod, const PM_FiltrationPeriod& rPeriod);
 
-class PM_Pool_Config {
+class PM_Config {
   private:
     // Private functions
 
     
   public:
     // Constructors
-    PM_Pool_Config();
+    PM_Config();
 
     // Verify that the abaqus describing the filtration time is valid
     PM_Error CheckFiltrationTimeAbaqus();
