@@ -15,6 +15,7 @@
 #include "PM_Config.h"                        // Pool Manager configuration management
 #include "PM_Error.h"                         // Pool Manager error management
 #include "PM_Utils.h"                         // Pool Manager utility tools
+#include "PM_Time_Mngt.h"                     // Pool Manager time management
 
 // Constructor
 PM_Config::PM_Config() {
@@ -94,112 +95,188 @@ PM_Error PM_Config::CheckFiltrationPeriodAbaqus() {
   return PM_Error(0,INFO, std::string("The filtration period abaqus is validated"));
 }
 
-// Get filtration duration depending on the temperature
-int PM_Config::GetFiltrationDuration (float waterTemperature) {
+// Get filtration duration in seconds depending on the temperature
+ulong PM_Config::GetFiltrationDuration (float waterTemperature) {
   int NumberLine = PM_FiltrationDuration_Abaqus.size();
-  int Duration = 2; // in any case, the duration must be greater than 0
+  ulong DurationInSeconds = 2 * 3600; // in any case, the duration must be greater than 0
+  tm tm_duration;   
   for (int i = 0; i <= NumberLine-1; i++ ) {
     if ((float)PM_FiltrationDuration_Abaqus[i].TempMin <= waterTemperature && waterTemperature < (float)PM_FiltrationDuration_Abaqus[i].TempMax) {
-      Duration = PM_FiltrationDuration_Abaqus[i].Duration;
+      DurationInSeconds = PM_FiltrationDuration_Abaqus[i].Duration * 3600;
+      LOG_D(TAG, "Found a corresponding filtration duration in table for water temperature: %6.2f", waterTemperature);
+      LOG_D(TAG, "- Min temperature: %6.2f", (float)PM_FiltrationDuration_Abaqus[i].TempMin);
+      LOG_D(TAG, "- Max temperature: %6.2f", (float)PM_FiltrationDuration_Abaqus[i].TempMax);
+      tm_duration = PM_Time_Mngt_convertSecondsToTm(DurationInSeconds);
+      LOG_D(TAG, "- Duration       : %02d:%02d:%02d (%us)", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, DurationInSeconds);
     }
   }
-  return Duration;
+  tm_duration = PM_Time_Mngt_convertSecondsToTm(DurationInSeconds);
+  LOG_I(TAG, "Get filtration duration for water temperature: %6.2f : %02d:%02d:%02d (%us)", waterTemperature, tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, DurationInSeconds);
+
+  return DurationInSeconds;
 }
 
 // Calculate next period of filtration
-void PM_Config::NextFiltrationPeriod (time_t &NextStartTime, time_t &NextEndTime, const ulong FiltrationDone, const ulong FiltrationDuration) {
-  LOG_V(TAG, "Begin NextFiltrationPeriod");
+void PM_Config::NextFiltrationPeriod (time_t &NextStartTime, time_t &NextEndTime, const ulong FiltrationDoneInSeconds, const ulong FiltrationDurationInSeconds) {
   int NumberLine = PM_FiltrationPeriod_Abaqus.size();
   time_t AvailableDuration = 0;
-  time_t now = pftime::time(nullptr); // get current time
-  tm *   tm_now = pftime::localtime(&now);
-  LOG_D(TAG, "Current time: %s/%s/%s %s:%s:%s:", tm_now->tm_year, tm_now->tm_mon, tm_now->tm_mday,tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec);
+  time_t diffTime = 0;
+  tm     tm_NextStartTime;
+  tm     tm_NextEndTime;
+  tm     tm_duration;
+  tm     tm_diffTime;
+  time_t now;
+  tm *   tm_now;
+
+  now = pftime::time(nullptr); // get current time
+  tm_now = pftime::localtime(&now);
+  LOG_D(TAG, "Current time: %04d/%02d/%02d %02d:%02d:%02d:", tm_now->tm_year+1900, tm_now->tm_mon+1, tm_now->tm_mday,tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec);
 
   LOG_D(TAG, "Calculate the next filtration period for:");
-  LOG_D(TAG, "- total day duration (s)   : %u", FiltrationDuration);
-  LOG_D(TAG, "- duration already done (s): %u", FiltrationDone);
+  diffTime = (time_t)FiltrationDurationInSeconds;
+  tm_duration = PM_Time_Mngt_convertSecondsToTm(FiltrationDurationInSeconds);
+  LOG_D(TAG, "- total day duration   : %02d:%02d:%02d  in seconds: %u", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, FiltrationDurationInSeconds);
+  tm_duration = PM_Time_Mngt_convertSecondsToTm(FiltrationDoneInSeconds);
+  LOG_D(TAG, "- duration already done: %02d:%02d:%02d  in seconds: %u", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, FiltrationDoneInSeconds);
 
   // Calculate the time duration until the end of the day
   sort(PM_FiltrationPeriod_Abaqus.begin(), PM_FiltrationPeriod_Abaqus.end(), PM_FiltrationPeriod_Priority_Cmp);
   
   for (int i = 0; i <= NumberLine-1; i++ ) {
+    LOG_D(TAG, "In the period: Start Time: %02d , End Time: %02d", PM_FiltrationPeriod_Abaqus[i].Start, PM_FiltrationPeriod_Abaqus[i].End);
+    
     if (PM_FiltrationPeriod_Abaqus[i].End <= tm_now->tm_hour) {
       // too late for this period
+      LOG_D(TAG, "Too late for this period");
+    
     } else if (PM_FiltrationPeriod_Abaqus[i].Start <= tm_now->tm_hour && tm_now->tm_hour < PM_FiltrationPeriod_Abaqus[i].End) {
       // we are just in this period, count only the time from now to the end of the period
-      tm * tm_NextEndTime = pftime::localtime(&now);
-      tm_NextEndTime->tm_hour = PM_FiltrationPeriod_Abaqus[i].End;
-      tm_NextEndTime->tm_min = 0;
-      tm_NextEndTime->tm_sec = 0;
-      time_t NextEndTime = mktime(tm_NextEndTime);
-      LOG_D(TAG, "In the period: NextEndTime : %d", NextEndTime);
-      LOG_D(TAG, "Available duration in the period: %d", NextEndTime - now);
+      LOG_D(TAG, "we are just in this period, count only the time from now to the end of the period");
+      if ( PM_FiltrationPeriod_Abaqus[i].End >= 24 ) {  // need to calcule the new date
+        Date Today;              // == today
+        Date Tomorrow = Today+1; // == Tomorrow
+        tm_NextEndTime.tm_year = Tomorrow.getYear() -1900;
+        tm_NextEndTime.tm_mon  = Tomorrow.getMonth() -1;
+        tm_NextEndTime.tm_mday = Tomorrow.getDay();
+        tm_NextEndTime.tm_hour = 0;
+        tm_NextEndTime.tm_min  = 0;
+        tm_NextEndTime.tm_sec  = 0;
+        NextEndTime = mktime(&tm_NextEndTime);
+      } 
+      else {
+        localtime_r(&now, &tm_NextEndTime);   
+        tm_NextEndTime.tm_hour = PM_FiltrationPeriod_Abaqus[i].End;
+        tm_NextEndTime.tm_hour = 0;
+        tm_NextEndTime.tm_hour = 0;
+        NextEndTime = mktime(&tm_NextEndTime);
+      }
+      LOG_D(TAG, "In the period: NextEndTime is: %02d:%02d:%02d", tm_NextEndTime.tm_hour, tm_NextEndTime.tm_min, tm_NextEndTime.tm_sec);
+      diffTime=NextEndTime - now;
+      tm_duration = PM_Time_Mngt_convertSecondsToTm(diffTime);
+      LOG_D(TAG, "Available duration in the period: %02d:%02d:%02d in s: %d", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, diffTime);
 
-      AvailableDuration += NextEndTime - now;
-      LOG_D(TAG, "Total available duration: %d", AvailableDuration);
-    } else {
-      // this period is on the following hours
-      LOG_D(TAG, "In a next period: Available duration: %d", (PM_FiltrationPeriod_Abaqus[i].End - PM_FiltrationPeriod_Abaqus[i].Start)*3600);
-      AvailableDuration += (PM_FiltrationPeriod_Abaqus[i].End - PM_FiltrationPeriod_Abaqus[i].Start)*3600;
-      LOG_D(TAG, "Total available duration: %d", AvailableDuration);
+      AvailableDuration += diffTime;
+      tm_duration = PM_Time_Mngt_convertSecondsToTm(AvailableDuration);
+      LOG_D(TAG, "Total available duration : %02d:%02d:%02d in s: %d", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, AvailableDuration);
+    } 
+    else {
+      // this period is on the next hours
+      LOG_D(TAG, "This period is on the next hours");
+      diffTime = (PM_FiltrationPeriod_Abaqus[i].End - PM_FiltrationPeriod_Abaqus[i].Start)*3600;
+      tm_duration = PM_Time_Mngt_convertSecondsToTm(diffTime);
+      LOG_D(TAG, "In a next period: Available duration : %02d:%02d:%02d in s: %d", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, diffTime);
+      AvailableDuration += diffTime;
+      tm_duration = PM_Time_Mngt_convertSecondsToTm(AvailableDuration);
+      LOG_D(TAG, "Total available duration : %02d:%02d:%02d in s: %d", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, AvailableDuration);
     }
   }
-  LOG_D(TAG, "Still available filtration time by the end of the day (s): %u", AvailableDuration);
+  tm_duration = PM_Time_Mngt_convertSecondsToTm(AvailableDuration);
+  LOG_D(TAG, "Still available filtration time by the end of the day: %02d:%02d:%02d in s: %d", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, AvailableDuration);
 
-  if (AvailableDuration >= (FiltrationDuration-FiltrationDone)) {
+  localtime_r(&now,&tm_NextStartTime);  // for eradicate compiler warnings
+  localtime_r(&now,&tm_NextEndTime);    // for eradicate compiler warnings
+
+  if (AvailableDuration >= (FiltrationDurationInSeconds-FiltrationDoneInSeconds)) {
     LOG_D(TAG, "There is enough time by the end of the day");
+    tm_duration = PM_Time_Mngt_convertSecondsToTm(AvailableDuration);
+    diffTime=(FiltrationDurationInSeconds-FiltrationDoneInSeconds);
+    tm_diffTime = PM_Time_Mngt_convertSecondsToTm(diffTime);
+    LOG_D(TAG, "Need %02d:%02d:%02d (%ds) and stay only : %02d:%02d:%02d (%ds)", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, AvailableDuration, tm_diffTime.tm_hour, tm_diffTime.tm_min, tm_diffTime.tm_sec, diffTime);
     // It keeps enough time by the end of the day
     for (int i = 0; i <= NumberLine-1; i++ ) {
       if (PM_FiltrationPeriod_Abaqus[i].End <= tm_now->tm_hour) {
         // too late for this period
+        LOG_D(TAG, "too late for this period");
       } else if (PM_FiltrationPeriod_Abaqus[i].Start <= tm_now->tm_hour && tm_now->tm_hour < PM_FiltrationPeriod_Abaqus[i].End) {
         // we are just in this period, count only the time from now to the end of the period
+        LOG_D(TAG, "we are just in this period, count only the time from now to the end of the period");
+        localtime_r(&now, &tm_NextStartTime);
         NextStartTime = now;
-        
-        tm * tm_time = pftime::localtime(&now);
-        tm_time->tm_hour = PM_FiltrationPeriod_Abaqus[i].End;
-        tm_time->tm_min  = 0;
-        tm_time->tm_sec  = 0;
-        NextEndTime = mktime(tm_time);
-        if ( (NextEndTime - NextStartTime) > (FiltrationDuration - FiltrationDone) ) {
-          NextEndTime = NextStartTime + (FiltrationDuration - FiltrationDone);
+
+        if ( PM_FiltrationPeriod_Abaqus[i].End >= 24 ) {  // need to calcule the new date
+          Date Today;              // == today
+          Date Tomorrow = Today+1; // == Tomorrow
+          tm_NextEndTime.tm_year = Tomorrow.getYear() -1900;
+          tm_NextEndTime.tm_mon  = Tomorrow.getMonth() -1;
+          tm_NextEndTime.tm_mday = Tomorrow.getDay();
+          tm_NextEndTime.tm_hour = 0;
+          tm_NextEndTime.tm_min  = 0;
+          tm_NextEndTime.tm_sec  = 0;
+          NextEndTime = mktime(&tm_NextEndTime);
         } 
-      } else {
+        else {
+          localtime_r(&now, &tm_NextEndTime);
+          tm_NextEndTime.tm_hour = PM_FiltrationPeriod_Abaqus[i].End;
+          tm_NextEndTime.tm_min  = 0;
+          tm_NextEndTime.tm_sec  = 0;
+          NextEndTime = mktime(&tm_NextEndTime);
+        }
+        if ( (NextEndTime - NextStartTime) > (FiltrationDurationInSeconds - FiltrationDoneInSeconds) ) {
+          NextEndTime = NextStartTime + (FiltrationDurationInSeconds - FiltrationDoneInSeconds);
+          localtime_r(&NextEndTime, &tm_NextEndTime);
+        } 
+        break;
+      } 
+      else {
         // this period is on the following hours
-        tm * tm_time = pftime::localtime(&now);
-        tm_time->tm_hour = PM_FiltrationPeriod_Abaqus[i].Start;
-        tm_time->tm_min  = 0;
-        tm_time->tm_sec  = 0;
-        NextStartTime = mktime(tm_time);
+        LOG_D(TAG, "this period is on the following hours");
+        localtime_r(&now, &tm_NextStartTime);
+        tm_NextStartTime.tm_hour = PM_FiltrationPeriod_Abaqus[i].Start;
+        tm_NextStartTime.tm_min  = 0;
+        tm_NextStartTime.tm_sec  = 0;
+        NextStartTime = mktime(&tm_NextStartTime);
         
-        tm_time = pftime::localtime(&now);
-        tm_time->tm_hour = PM_FiltrationPeriod_Abaqus[i].End;
-        tm_time->tm_min  = 0;
-        tm_time->tm_sec  = 0;
-        NextEndTime = mktime(tm_time);
-        if ( (NextEndTime - NextStartTime) > (FiltrationDuration - FiltrationDone) ) {
-          NextEndTime = NextStartTime + (FiltrationDuration - FiltrationDone);
-        } 
+        localtime_r(&now, &tm_NextEndTime);
+        tm_NextEndTime.tm_hour = PM_FiltrationPeriod_Abaqus[i].End;
+        tm_NextEndTime.tm_min  = 0;
+        tm_NextEndTime.tm_sec  = 0;
+        NextEndTime = mktime(&tm_NextEndTime);
+        if ( (NextEndTime - NextStartTime) > (FiltrationDurationInSeconds - FiltrationDoneInSeconds) ) {
+          NextEndTime = NextStartTime + (FiltrationDurationInSeconds - FiltrationDoneInSeconds);
+          localtime_r(&NextEndTime, &tm_NextEndTime);
+        }
+        break;
       }
     }
-  } else {
+  } 
+  else {
     // Not enough time by the end of the day, we keep all of this time nevertheless
     LOG_D(TAG, "Not enough time by the end of the day, we keep all of this time nevertheless");
+    localtime_r(&now, &tm_NextStartTime);
     NextStartTime = now;
 
-    Date NextDay; // == today
-    NextDay++;    // == Tomorrow
-    tm * tm_time ;
-    tm_time->tm_year = NextDay.getYear();
-    tm_time->tm_mon = NextDay.getMonth();
-    tm_time->tm_mday = NextDay.getMonth();
-    tm_time->tm_hour = 0;
-    tm_time->tm_min  = 0;
-    tm_time->tm_sec  = 0;
-    NextStartTime = mktime(tm_time);
+    Date Today;              // == today
+    Date Tomorrow = Today+1; // == Tomorrow
+    tm_NextEndTime.tm_year = Tomorrow.getYear() -1900;
+    tm_NextEndTime.tm_mon  = Tomorrow.getMonth() -1;
+    tm_NextEndTime.tm_mday = Tomorrow.getDay();
+    tm_NextEndTime.tm_hour = 0;
+    tm_NextEndTime.tm_min  = 0;
+    tm_NextEndTime.tm_sec  = 0;
+    NextEndTime = mktime(&tm_NextEndTime);
   }
-  LOG_D(TAG, "- next start time (s): %u", NextStartTime);
-  LOG_D(TAG, "- next end time   (s): %u", NextEndTime);
+  LOG_D(TAG, "- next start time: %04d/%02d/%02d %02d:%02d:%02d", tm_NextStartTime.tm_year+1900, tm_NextStartTime.tm_mon+1, tm_NextStartTime.tm_mday, tm_NextStartTime.tm_hour, tm_NextStartTime.tm_min, tm_NextStartTime.tm_sec);
+  LOG_D(TAG, "- next end time  : %04d/%02d/%02d %02d:%02d:%02d", tm_NextEndTime.tm_year+1900, tm_NextEndTime.tm_mon+1, tm_NextEndTime.tm_mday, tm_NextEndTime.tm_hour, tm_NextEndTime.tm_min, tm_NextEndTime.tm_sec);
 }
 
 //Comparator of PM_FiltrationPeriod on Priority of the period

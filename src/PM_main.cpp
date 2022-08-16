@@ -37,6 +37,7 @@
 #include "PM_Utils.h"              // Pool manager utilities
 #include "PM_Pump.h"               // Pool manager pumps management
 
+
 // Intantiate the Pool Manager configuration
 static PM_Config Pool_Configuration;
 
@@ -617,23 +618,21 @@ void PM_Time_Init() {
     isRTCLostPower=rtc.lostPower();   
   }
 
+  // Initialize time from NTP server
+   PM_Time_Mngt_initialize_time();
+  
   // If there is no RTC module or if it lost its power, set the time with the NTP time
-  if (isRTCLostPower == true ) {
-    LOG_I(TAG, "RTC has lost power. Initialize time with NTP server");
-    // Initialize time from NTP server
-    PM_Time_Mngt_initialize_time();
+  if (isRTCLostPower == true || isRTCFound == true) {
+    LOG_I(TAG, "Initialize RTC time with NTP server");
 
-    // if there is a RTC module, reinitialize it with the NTP time
-    if (isRTCFound == true) {
-      // Get current time
-      time(&now);
-      // adjust time of rtc with the time get from NTP server
-      DT_now = DateTime(now);
-      char DT_now_format[20]= "YYYY-MM-DD hh:mm:ss";
-      DT_now_str = DT_now.toString(DT_now_format);
-      LOG_I(TAG, "Adjust the time of RTC with the NTP time: %s", DT_now_str.c_str() );
-      rtc.adjust(DT_now);
-    }
+    // Get current time
+    time(&now);
+    // adjust time of rtc with the time get from NTP server
+    DT_now = DateTime(now);
+    char DT_now_format[20]= "YYYY-MM-DD hh:mm:ss";
+    DT_now_str = DT_now.toString(DT_now_format);
+    LOG_I(TAG, "Adjust the time of RTC with the NTP time: %s", DT_now_str.c_str() );
+    rtc.adjust(DT_now);
   }
   
   // if there is a RTC module, set the time with RTC time
@@ -916,17 +915,24 @@ void PM_SetOrpPID(bool Enable)
 void PM_CalculateNextFiltrationPeriods() {
 
   if (pm_measures.DayFiltrationDuration == 0 ) {
-    // calculate the filtration duration depending on the water temperature
+    // calculate the filtration duration in seconds depending on the water temperature
     pm_measures.DayFiltrationDuration = Pool_Configuration.GetFiltrationDuration(pm_measures.WaterTemp);
   }
   LOG_I(TAG, "Water temperature: %6.2f", pm_measures.WaterTemp);
-  LOG_I(TAG, "Filtration duration for this day: %d", pm_measures.DayFiltrationDuration);
+  tm tm_duration = PM_Time_Mngt_convertSecondsToTm(pm_measures.DayFiltrationDuration);
+  LOG_I(TAG, "Filtration duration for this day: %02d:%02d:%02d (%ds)", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, pm_measures.DayFiltrationDuration);
   
   if (pm_measures.FilteredDuration <= pm_measures.DayFiltrationDuration) {
     Pool_Configuration.NextFiltrationPeriod (pm_measures.FiltrationStartTime, pm_measures.FiltrationEndTime, pm_measures.FilteredDuration, pm_measures.DayFiltrationDuration);
   }
 
   LOG_I(TAG, "Next Filtration period is:");
-  LOG_I(TAG, "- next start time (s): %u", pm_measures.FiltrationStartTime);
-  LOG_I(TAG, "- next end time   (s): %u", pm_measures.FiltrationEndTime);
+  tm tm_NextStartTime;
+  localtime_r(&pm_measures.FiltrationStartTime, &tm_NextStartTime);
+
+  tm tm_NextEndTime;
+  localtime_r(&pm_measures.FiltrationEndTime, &tm_NextEndTime);
+  
+  LOG_D(TAG, "- next start time: %04d/%02d/%02d %02d:%02d:%02d (%u)", tm_NextStartTime.tm_year+1900, tm_NextStartTime.tm_mon+1, tm_NextStartTime.tm_mday, tm_NextStartTime.tm_hour, tm_NextStartTime.tm_min, tm_NextStartTime.tm_sec, pm_measures.FiltrationStartTime);
+  LOG_D(TAG, "- next end time  : %04d/%02d/%02d %02d:%02d:%02d (%u)", tm_NextEndTime.tm_year+1900, tm_NextEndTime.tm_mon+1, tm_NextEndTime.tm_mday, tm_NextEndTime.tm_hour, tm_NextEndTime.tm_min, tm_NextEndTime.tm_sec, pm_measures.FiltrationEndTime);
 }

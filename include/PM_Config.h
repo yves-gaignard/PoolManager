@@ -82,11 +82,11 @@ static std::vector<PM_FiltrationDuration> PM_FiltrationDuration_Abaqus = {
 
 static std::vector<PM_FiltrationPeriod> PM_FiltrationPeriod_Abaqus = {
 // { Start , End, Priority }  
-  {  8, 12,  1},  // The main priority 1 is allocated to the morning
-  { 14, 20,  1},  // ... and for the afternoon (priority 1 too)
-  { 20, 24,  2},  // The evening will be taken if the filtration time is greater than the sum of the morning and the afternoon period
   {  0,  8,  3},  // The night period is considered as less priority than the light day.
-  { 12, 14,  4}   // During lunch time, the filtration is on only when necessary 
+  {  8, 12,  1},  // The main priority 1 is allocated to the morning
+  { 12, 14,  4},  // During lunch time, the filtration is on only when necessary 
+  { 14, 20,  1},  // ... and for the afternoon (priority 1 too)
+  { 20, 24,  2}   // The evening will be taken if the filtration time is greater than the sum of the morning and the afternoon period
 };
 // Example 1: if the duration of the filtration is  6h per day, the filtration will at 8h-11h and 14h-17h as the morning and the afternoon have the same priority
 // Example 2: if the duration of the filtration is 12h per day, the filtration will at 8h-12h, 14h-20h and 20h-22h
@@ -180,11 +180,11 @@ class PM_Config {
     // Verify that the abaqus describing the filtration period is valid
     PM_Error CheckFiltrationPeriodAbaqus();
 
-    // Get filtration duration depending on the temperature
-    int GetFiltrationDuration (float waterTemperature);
+    // Get filtration duration in seconds depending on the temperature
+    ulong GetFiltrationDuration (float waterTemperature);
 
     // Calculate next period of filtration
-    void NextFiltrationPeriod (time_t &NextStartTime, time_t &NextEndTime, const ulong FiltrationDone, const ulong FiltrationDuration);
+    void NextFiltrationPeriod (time_t &NextStartTime, time_t &NextEndTime, const ulong FiltrationDoneInSeconds, const ulong FiltrationDurationInSeconds);
 
 };
 
