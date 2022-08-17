@@ -176,6 +176,8 @@ void PM_Temperature_Init();
 void PM_SetpHPID(bool Enable);
 void PM_SetOrpPID(bool Enable);
 void PM_CalculateNextFiltrationPeriods();
+void PM_StartFiltrationPump();
+void PM_StopFiltrationPump();
 
 // Button declarations
 boolean PM_DisplayButton_State = false;    // Current State
@@ -228,11 +230,17 @@ void setup() {
   PM_Time_Init();
 
   // Get current time
+  DateTime Now(now);
+  char LocalTimeFormat[sizeof(PM_LocalTimeFormat)];
+  strcpy(LocalTimeFormat, PM_LocalTimeFormat);
+  LOG_D(TAG, "Current date and local time is: %s", Now.toString(LocalTimeFormat));
+  /*
   char timestamp_str[20];
   tm* time_tm = localtime(&now);
 	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
   LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
-  
+  */
+
   // Start of diaplaying information
   PM_Display_Activation_Start=now;
   
@@ -318,9 +326,14 @@ void setup() {
 
   // Start filtration pump at power-on if within scheduled time slots -- You can choose not to do this and start pump manually
   PM_CalculateNextFiltrationPeriods();
-  if (pm_measures.AutoMode && (now >= pm_measures.FiltrationStartTime) && (now < pm_measures.FiltrationEndTime))
-    FiltrationPump.Start();
-  else FiltrationPump.Stop();
+  if (pm_measures.AutoMode && (now >= pm_measures.FiltrationStartTime) && (now < pm_measures.FiltrationEndTime)) {
+    PM_StartFiltrationPump();
+    LOG_I(TAG, "Start filtration pump");
+  }
+  else {
+    PM_StopFiltrationPump();
+    LOG_I(TAG, "Stop filtration pump");
+  } 
 
   // Create tasks
   //                          Function           Name          Stack  Param PRIO  Handle                core
@@ -918,15 +931,15 @@ void PM_CalculateNextFiltrationPeriods() {
     // calculate the filtration duration in seconds depending on the water temperature
     pm_measures.DayFiltrationDuration = Pool_Configuration.GetFiltrationDuration(pm_measures.WaterTemp);
   }
-  LOG_I(TAG, "Water temperature: %6.2f", pm_measures.WaterTemp);
+  LOG_D(TAG, "Water temperature: %6.2f", pm_measures.WaterTemp);
   tm tm_duration = PM_Time_Mngt_convertSecondsToTm(pm_measures.DayFiltrationDuration);
-  LOG_I(TAG, "Filtration duration for this day: %02d:%02d:%02d (%ds)", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, pm_measures.DayFiltrationDuration);
+  LOG_D(TAG, "Filtration duration for this day: %02d:%02d:%02d (%ds)", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, pm_measures.DayFiltrationDuration);
   
   if (pm_measures.FilteredDuration <= pm_measures.DayFiltrationDuration) {
     Pool_Configuration.NextFiltrationPeriod (pm_measures.FiltrationStartTime, pm_measures.FiltrationEndTime, pm_measures.FilteredDuration, pm_measures.DayFiltrationDuration);
   }
 
-  LOG_I(TAG, "Next Filtration period is:");
+  LOG_D(TAG, "Next Filtration period is:");
   tm tm_NextStartTime;
   localtime_r(&pm_measures.FiltrationStartTime, &tm_NextStartTime);
 
@@ -935,4 +948,15 @@ void PM_CalculateNextFiltrationPeriods() {
   
   LOG_D(TAG, "- next start time: %04d/%02d/%02d %02d:%02d:%02d (%u)", tm_NextStartTime.tm_year+1900, tm_NextStartTime.tm_mon+1, tm_NextStartTime.tm_mday, tm_NextStartTime.tm_hour, tm_NextStartTime.tm_min, tm_NextStartTime.tm_sec, pm_measures.FiltrationStartTime);
   LOG_D(TAG, "- next end time  : %04d/%02d/%02d %02d:%02d:%02d (%u)", tm_NextEndTime.tm_year+1900, tm_NextEndTime.tm_mon+1, tm_NextEndTime.tm_mday, tm_NextEndTime.tm_hour, tm_NextEndTime.tm_min, tm_NextEndTime.tm_sec, pm_measures.FiltrationEndTime);
+}
+
+// =================================================================================================
+//                         START AND STOP FILTRATION PUMP
+// =================================================================================================
+void PM_StartFiltrationPump() {
+    FiltrationPump.Start();
+}
+void PM_StopFiltrationPump() {
+    FiltrationPump.Stop();
+
 }

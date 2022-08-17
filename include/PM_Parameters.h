@@ -63,13 +63,13 @@ const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 
 #define PM_DisplayButton_Pin 18
 
 // One wire (temperature sensors) is plugged into GPIO 4
-#define ONE_WIRE_BUS 4 
+#define ONE_WIRE_BUS          4 
 #define TEMPERATURE_PRECISION 9
 
 // Pump management GPIO
-#define FILTRATION_PUMP 32
-#define PH_PUMP         14
-#define CHL_PUMP        12
+#define FILTRATION_PUMP      32
+#define PH_PUMP              14
+#define CHL_PUMP             12
 
 // =========================================================================================================
 //                                     Software parameters
@@ -91,8 +91,6 @@ const char PM_TimeZone[60] = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; // 
 #define LCD_DISPLAY_TIMEOUT 30
 
 // duration of a screen display before switching to the next time (in seconds)
-#define LCD_DISPLAY_SCREEN_DURATION 5
-
-// 
+#define LCD_DISPLAY_SCREEN_DURATION 5 
 
 #endif

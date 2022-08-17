@@ -143,7 +143,7 @@ void PM_Config::NextFiltrationPeriod (time_t &NextStartTime, time_t &NextEndTime
   sort(PM_FiltrationPeriod_Abaqus.begin(), PM_FiltrationPeriod_Abaqus.end(), PM_FiltrationPeriod_Priority_Cmp);
   
   for (int i = 0; i <= NumberLine-1; i++ ) {
-    LOG_D(TAG, "In the period: Start Time: %02d , End Time: %02d", PM_FiltrationPeriod_Abaqus[i].Start, PM_FiltrationPeriod_Abaqus[i].End);
+    LOG_D(TAG, "In the period, Start Time is: %02d , End Time is: %02d", PM_FiltrationPeriod_Abaqus[i].Start, PM_FiltrationPeriod_Abaqus[i].End);
     
     if (PM_FiltrationPeriod_Abaqus[i].End <= tm_now->tm_hour) {
       // too late for this period
@@ -152,7 +152,7 @@ void PM_Config::NextFiltrationPeriod (time_t &NextStartTime, time_t &NextEndTime
     } else if (PM_FiltrationPeriod_Abaqus[i].Start <= tm_now->tm_hour && tm_now->tm_hour < PM_FiltrationPeriod_Abaqus[i].End) {
       // we are just in this period, count only the time from now to the end of the period
       LOG_D(TAG, "we are just in this period, count only the time from now to the end of the period");
-      if ( PM_FiltrationPeriod_Abaqus[i].End >= 24 ) {  // need to calcule the new date
+      if ( PM_FiltrationPeriod_Abaqus[i].End >= 24 ) {  // need to calcule the next day date
         Date Today;              // == today
         Date Tomorrow = Today+1; // == Tomorrow
         tm_NextEndTime.tm_year = Tomorrow.getYear() -1900;
@@ -166,11 +166,11 @@ void PM_Config::NextFiltrationPeriod (time_t &NextStartTime, time_t &NextEndTime
       else {
         localtime_r(&now, &tm_NextEndTime);   
         tm_NextEndTime.tm_hour = PM_FiltrationPeriod_Abaqus[i].End;
-        tm_NextEndTime.tm_hour = 0;
-        tm_NextEndTime.tm_hour = 0;
+        tm_NextEndTime.tm_min  = 0;
+        tm_NextEndTime.tm_sec  = 0;
         NextEndTime = mktime(&tm_NextEndTime);
       }
-      LOG_D(TAG, "In the period: NextEndTime is: %02d:%02d:%02d", tm_NextEndTime.tm_hour, tm_NextEndTime.tm_min, tm_NextEndTime.tm_sec);
+      LOG_D(TAG, "In the period, NextEndTime is: %02d:%02d:%02d", tm_NextEndTime.tm_hour, tm_NextEndTime.tm_min, tm_NextEndTime.tm_sec);
       diffTime=NextEndTime - now;
       tm_duration = PM_Time_Mngt_convertSecondsToTm(diffTime);
       LOG_D(TAG, "Available duration in the period: %02d:%02d:%02d in s: %d", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, diffTime);
