@@ -127,6 +127,7 @@ float PM_Temperature::getPreciseTempCByIndex(int idx) {
     int max_try = 5; 
     int nb_try = 0;
     while (temperatureC == -127.0 && nb_try < max_try) {
+      _sensors.setResolution(10);
       temperatureC = _sensors.getTempCByIndex(idx);
       LOG_D(TAG, "Get temperature for index %d: %f ", idx, temperatureC);
       nb_try ++;
@@ -166,7 +167,7 @@ float PM_Temperature::getPreciseTempCByAddress(std::string deviceAddress) {
       LOG_E(TAG, "Cannot get temperature for unknown sensor address: %s ", deviceAddress.c_str());
     }
     else {
-      temperatureC = this->getTempCByIndex(pos);
+      temperatureC = this->getPreciseTempCByIndex(pos);
       LOG_D(TAG, "Get temperature for name %s: %f ", deviceAddress.c_str(), temperatureC);
     }
   }
@@ -199,7 +200,7 @@ float PM_Temperature::getPreciseTempCByName(std::string deviceName) {
       LOG_E(TAG, "Cannot get temperature for unknown sensor name: %s ", deviceName.c_str());
     }
     else {
-      temperatureC = this->getTempCByIndex(pos);
+      temperatureC = this->getPreciseTempCByIndex(pos);
       LOG_D(TAG, "Get temperature for name %s: %f ", deviceName.c_str(), temperatureC);
     }
   }
@@ -228,10 +229,10 @@ std::string PM_Temperature::deviceAddressToString(DeviceAddress deviceAddress) {
   std::string deviceAddressString;
   for (int i = 0; i < 8; i++)
   {  
-    // LOG_D(TAG, "deviceAddress[%d] = %d", i,  deviceAddress[i]);
+    LOG_D(TAG, "deviceAddress[%d] = %d", i,  deviceAddress[i]);
     // zero pad the address if necessary
     deviceAddressString += n2hexstr(deviceAddress[i]);
-    // LOG_D(TAG, "deviceAddressString = %s", deviceAddressString.c_str());
+    LOG_D(TAG, "deviceAddressString = %s", deviceAddressString.c_str());
   }
   if (deviceAddressString.size() != 16) {
     LOG_E(TAG, "deviceAddressString = %s length is not 16", deviceAddressString.c_str());

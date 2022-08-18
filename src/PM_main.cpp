@@ -20,6 +20,7 @@
 #include <Preferences.h>           // Library for preference storage management
 #include <PID_v1.h>                // Library for PID controller (Proportional–Integral–Derivative controller)
 #include <time.h>                  // Library for management time
+#include <FreeRTOS.h>
 
 // Project definitions
 #include "PM_Pool_Manager.h"       // Pool manager constant declarations
@@ -36,6 +37,7 @@
 #include "PM_Error.h"              // Pool manager error management
 #include "PM_Utils.h"              // Pool manager utilities
 #include "PM_Pump.h"               // Pool manager pumps management
+
 
 
 // Intantiate the Pool Manager configuration
@@ -152,6 +154,9 @@ DeviceAddress insideThermometer, outsideThermometer, waterThermometer;
 // Instantiate object to manage all temperature sensors
 PM_Temperature PM_TemperatureSensors;
 
+// Mutex to share access to I2C bus among several tasks
+static SemaphoreHandle_t mutex;
+
 // Tasks declaration
 TaskHandle_t Task_Main_Handle      = NULL;
 TaskHandle_t Task_LCD_Handle       = NULL;
@@ -178,6 +183,11 @@ void PM_SetOrpPID(bool Enable);
 void PM_CalculateNextFiltrationPeriods();
 void PM_StartFiltrationPump();
 void PM_StopFiltrationPump();
+bool saveParam(const char* key, uint8_t val);
+bool saveParam(const char* key, bool val);
+bool saveParam(const char* key, unsigned long val);
+bool saveParam(const char* key, double val);
+bool saveParam(const char* key, float val);
 
 // Button declarations
 boolean PM_DisplayButton_State = false;    // Current State
@@ -200,7 +210,7 @@ void setup() {
   Log.setTag("PM_I2CScan"    , LOG_LEVEL);
   Log.setTag("PM_Log"        , LOG_LEVEL);
   Log.setTag("PM_OTA_Web_Srv", LOG_LEVEL);
-  Log.setTag("PM_Config"     , LOG_VERBOSE);
+  Log.setTag("PM_Config"     , LOG_LEVEL);
   Log.setTag("PM_Temperature", LOG_LEVEL);
   Log.setTag("PM_Time_Mngt"  , LOG_LEVEL);
   Log.setTag("PM_Wifi"       , LOG_LEVEL);
@@ -230,16 +240,17 @@ void setup() {
   PM_Time_Init();
 
   // Get current time
+  /*
   DateTime Now(now);
   char LocalTimeFormat[sizeof(PM_LocalTimeFormat)];
   strcpy(LocalTimeFormat, PM_LocalTimeFormat);
   LOG_D(TAG, "Current date and local time is: %s", Now.toString(LocalTimeFormat));
-  /*
+  */
   char timestamp_str[20];
   tm* time_tm = localtime(&now);
 	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
   LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
-  */
+  
 
   // Start of diaplaying information
   PM_Display_Activation_Start=now;
@@ -334,6 +345,7 @@ void setup() {
     PM_StopFiltrationPump();
     LOG_I(TAG, "Stop filtration pump");
   } 
+
 
   // Create tasks
   //                          Function           Name          Stack  Param PRIO  Handle                core
@@ -458,8 +470,8 @@ void PM_Task_GPIO      ( void *pvParameters ) {
   char timestamp_str[20];
 
   std::string deviceName;
-  float preciseTemperatureC;
-  int   temperatureC;
+  float preciseTemperatureC = 0.0;
+  //int   temperatureC =0;
 
   for( ;; ) {
     time(&now);
@@ -477,21 +489,21 @@ void PM_Task_GPIO      ( void *pvParameters ) {
       deviceName = PM_TemperatureSensors.getDeviceNameByIndex(i);
 
       preciseTemperatureC = PM_TemperatureSensors.getPreciseTempCByName(deviceName);
-      LOG_D(TAG, "Sensor: %19s : %f°C", deviceName.c_str(),preciseTemperatureC);
-      temperatureC = PM_TemperatureSensors.getTempCByName(deviceName);
-      LOG_I(TAG, "Sensor: %19s : %d°C", deviceName.c_str(),temperatureC);
+      LOG_I(TAG, "Sensor: %19s : % 4.2f°C", deviceName.c_str(),preciseTemperatureC);
+      //temperatureC = PM_TemperatureSensors.getTempCByName(deviceName);
+      //LOG_D(TAG, "Sensor: %19s : %6d°C", deviceName.c_str(),temperatureC);
 
       if (deviceName == insideThermometerName) {
         pm_measures.InAirTemp = preciseTemperatureC;
-        pm_measures_str.InAirTemp_str = PM_itoa(temperatureC);
+        saveParam("InAirTemp", pm_measures.InAirTemp);
       }
       else if (deviceName == outsideThermometerName){
         pm_measures.OutAirTemp = preciseTemperatureC;
-        pm_measures_str.OutAirTemp_str = PM_itoa(temperatureC);
+        saveParam("OutAirTemp", pm_measures.OutAirTemp);
       } 
       else if (deviceName == waterThermometerName) {
         pm_measures.WaterTemp = preciseTemperatureC;
-        pm_measures_str.WaterTemp_str = PM_itoa(temperatureC);
+        saveParam("WaterTemp", pm_measures.WaterTemp);
       }
     }
 
@@ -620,8 +632,6 @@ void PM_Time_Init() {
   // ------------------------
   boolean isRTCFound     = true;
   boolean isRTCLostPower = true;
-  DateTime DT_now;
-  std::string DT_now_str;
 
   // check if a RTC module is connected
   if (! rtc.begin()) {
@@ -634,6 +644,7 @@ void PM_Time_Init() {
   // Initialize time from NTP server
    PM_Time_Mngt_initialize_time();
   
+  
   // If there is no RTC module or if it lost its power, set the time with the NTP time
   if (isRTCLostPower == true || isRTCFound == true) {
     LOG_I(TAG, "Initialize RTC time with NTP server");
@@ -641,20 +652,27 @@ void PM_Time_Init() {
     // Get current time
     time(&now);
     // adjust time of rtc with the time get from NTP server
-    DT_now = DateTime(now);
-    char DT_now_format[20]= "YYYY-MM-DD hh:mm:ss";
-    DT_now_str = DT_now.toString(DT_now_format);
-    LOG_I(TAG, "Adjust the time of RTC with the NTP time: %s", DT_now_str.c_str() );
-    rtc.adjust(DT_now);
+    DateTime DT_now (now);
+    if (DT_now.isValid()) {
+      char DT_now_str[20]= "YYYY-MM-DD hh:mm:ss";
+      DT_now.toString(DT_now_str);
+      LOG_I(TAG, "Adjust the time of RTC with the NTP time: %s", DT_now_str);
+      rtc.adjust(DT_now);
+    }
+    else {
+      LOG_E(TAG, "Cannot set time to RTC as DT_now is not valid !!!!" );
+    }
   }
   
   // if there is a RTC module, set the time with RTC time
   if (isRTCFound == true) {
+    
     // set time with the RTC time
-    DT_now = rtc.now();
-    char DT_now_format[20]= "YYYY-MM-DD hh:mm:ss";
-    DT_now_str = DT_now.toString(DT_now_format);
-    LOG_I(TAG, "Get the time from RTC: %s", DT_now_str.c_str() );
+    DateTime DT_now (rtc.now());
+    char DT_now_str[20]= "YYYY-MM-DD hh:mm:ss";
+    DT_now.toString(DT_now_str);
+    LOG_I(TAG, "Get the time from RTC: %s", DT_now_str);
+    
     // set the time
     now = DT_now.unixtime();
     LOG_I(TAG, "rtc.now = %u", now );
@@ -662,7 +680,9 @@ void PM_Time_Init() {
     timezone tz = {0,0} ;
     int ret = settimeofday(&tv, &tz);
     if ( ret != 0 ) {LOG_E(TAG, "Cannot set time from RTC" ); };
+    
   }
+  
 }
 // =================================================================================================
 //                           MEASURES INITIALIZATION FROM STORAGE
@@ -848,6 +868,81 @@ bool PM_NVS_Save() {
 
   return (i == sizeof(pm_measures));
 }
+
+// =================================================================================================
+// functions to save any type of parameter (4 overloads with same name but different arguments)
+// =================================================================================================
+bool saveParam(const char* key, uint8_t val)
+{
+  nvs.begin(Project.Name.c_str(),false);
+  size_t i = nvs.putUChar(key,val);
+  return(i == sizeof(val));
+}
+
+bool saveParam(const char* key, bool val)
+{
+  nvs.begin(Project.Name.c_str(),false);
+  size_t i = nvs.putBool(key,val);
+  return(i == sizeof(val));
+}
+
+bool saveParam(const char* key, unsigned long val)
+{
+  nvs.begin(Project.Name.c_str(),false);
+  size_t i = nvs.putULong(key,val);
+  return(i == sizeof(val));
+}
+
+bool saveParam(const char* key, double val)
+{
+  nvs.begin(Project.Name.c_str(),false);
+  size_t i = nvs.putDouble(key,val);
+  return(i == sizeof(val));
+}
+
+bool saveParam(const char* key, float val)
+{
+  nvs.begin(Project.Name.c_str(),false);
+  size_t i = nvs.putFloat(key,val);
+  return(i == sizeof(val));
+}
+
+// =================================================================================================
+//                           UTILITY FUNCTIONS
+// =================================================================================================
+//Compute free RAM
+//useful to check if it does not shrink over time
+int freeRam () {
+  int v = xPortGetFreeHeapSize();
+  return v;
+}
+
+// Get current free stack 
+unsigned stack_hwm(){
+  return uxTaskGetStackHighWaterMark(nullptr);
+}
+
+// Monitor free stack (display smallest value)
+void stack_mon(UBaseType_t &hwm)
+{
+  UBaseType_t temp = uxTaskGetStackHighWaterMark(nullptr);
+  if(!hwm || temp < hwm)
+  {
+    hwm = temp;
+    LOG_D(TAG, "[stack_mon] %s: %d bytes",pcTaskGetTaskName(NULL), hwm);
+  }  
+}
+
+// Get exclusive access of I2C bus
+void lockI2C(){
+  xSemaphoreTake(mutex, portMAX_DELAY);
+}
+
+// Release I2C bus access
+void unlockI2C(){
+  xSemaphoreGive(mutex);  
+}
+
 // =================================================================================================
 //                           INITIALIZE TEMPERATURE SENSORS
 // =================================================================================================
