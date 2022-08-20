@@ -3,8 +3,8 @@
   
   Configuration Parameters of the Pool Manager project
 */
-#ifndef PM_Pool_Config_h
-#define PM_Pool_Config_h
+#ifndef PM_Config_h
+#define PM_Config_h
 
 #include <Arduino.h>
 #include <vector>
@@ -82,11 +82,11 @@ static std::vector<PM_FiltrationDuration> PM_FiltrationDuration_Abaqus = {
 
 static std::vector<PM_FiltrationPeriod> PM_FiltrationPeriod_Abaqus = {
 // { Start , End, Priority }  
-  {  8, 12,  1},  // The main priority 1 is allocated to the morning
-  { 14, 20,  1},  // ... and for the afternoon (priority 1 too)
-  { 20, 24,  2},  // The evening will be taken if the filtration time is greater than the sum of the morning and the afternoon period
   {  0,  8,  3},  // The night period is considered as less priority than the light day.
-  { 12, 14,  4}   // During lunch time, the filtration is on only when necessary 
+  {  8, 12,  1},  // The main priority 1 is allocated to the morning
+  { 12, 14,  4},  // During lunch time, the filtration is on only when necessary 
+  { 14, 20,  1},  // ... and for the afternoon (priority 1 too)
+  { 20, 24,  2}   // The evening will be taken if the filtration time is greater than the sum of the morning and the afternoon period
 };
 // Example 1: if the duration of the filtration is  6h per day, the filtration will at 8h-11h and 14h-17h as the morning and the afternoon have the same priority
 // Example 2: if the duration of the filtration is 12h per day, the filtration will at 8h-12h, 14h-20h and 20h-22h
@@ -105,6 +105,9 @@ static std::vector<PM_FiltrationPeriod> PM_FiltrationPeriod_Abaqus = {
 const float PM_pH_Min = 7.4;
 const float PM_pH_Max = 7.8;
 
+// PID Directions (either DIRECT or REVERSE depending on Ph/Orp correction vs water properties)
+#define pHPID_DIRECTION REVERSE
+
 // ------------------------------------------------------------
 // ORP ( Oxidation-reduction potential)
 // ------------------------------------------------------------
@@ -118,6 +121,9 @@ const float PM_pH_Max = 7.8;
 // 2. **PM_ORP_Max** (in mV) for trigerring the stop of injection of Chlorine.
 const int PM_ORP_Min = 450;
 const int PM_ORP_Max = 750;
+
+// PID Directions (either DIRECT or REVERSE depending on Ph/Orp correction vs water properties)
+#define OrpPID_DIRECTION DIRECT
 
 // ------------------------------------------------------------
 // Pressure in the filtration circuit
@@ -133,6 +139,20 @@ const int PM_ORP_Max = 750;
 const float PM_Pressure_Min = 0.5;
 const float PM_Pressure_Max = 2.0;
 
+// ------------------------------------------------------------
+// Peristaltic Pump characteristics 
+// ------------------------------------------------------------
+// As each injection peristaltic pump has each own characteristics, provide their flow rate (l/h)
+const float PM_pH_Pump_Flow_Rate = 1.5;       // Units: liter / hours
+const float PM_Chlorine_Pump_Flow_Rate = 1.5; // Units: liter / hours
+
+// ------------------------------------------------------------
+// ph and Chlorine tank characteristics 
+// ------------------------------------------------------------
+// As each injection peristaltic pump has each own characteristics, provide their flow rate (l/h)
+const float PM_pH_Tank_Volume = 20.0;       // Units: liter
+const float PM_Chlorine_Tank_Volume = 20.0; // Units: liter
+
 // ========================================================================================================
 // End of customization
 // ========================================================================================================
@@ -145,21 +165,27 @@ static bool PM_FiltrationPeriod_Start_Cmp(const PM_FiltrationPeriod& lPeriod, co
 //Comparator of PM_FiltrationPeriod on End of the period
 static bool PM_FiltrationPeriod_End_Cmp(const PM_FiltrationPeriod& lPeriod, const PM_FiltrationPeriod& rPeriod);
 
-class PM_Pool_Config {
+class PM_Config {
   private:
     // Private functions
 
     
   public:
     // Constructors
-    PM_Pool_Config();
+    PM_Config();
 
     // Verify that the abaqus describing the filtration time is valid
     PM_Error CheckFiltrationTimeAbaqus();
 
     // Verify that the abaqus describing the filtration period is valid
     PM_Error CheckFiltrationPeriodAbaqus();
-  
+
+    // Get filtration duration in seconds depending on the temperature
+    ulong GetFiltrationDuration (float waterTemperature);
+
+    // Calculate next period of filtration
+    void NextFiltrationPeriod (time_t &NextStartTime, time_t &NextEndTime, const ulong FiltrationDoneInSeconds, const ulong FiltrationDurationInSeconds);
+
 };
 
 #endif

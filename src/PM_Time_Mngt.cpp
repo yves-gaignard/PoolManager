@@ -100,7 +100,7 @@ void PM_Time_Mngt_initialize_time(void)
     tzset();
     localtime_r(&now, &timeinfo);
     strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
-    LOG_I(TAG, "The current date/time in Paris is: %s", strftime_buf);
+    LOG_I(TAG, "The current local date/time is: %s", strftime_buf);
 
     if (sntp_get_sync_mode() == SNTP_SYNC_MODE_SMOOTH) {
         struct timeval outdelta;
@@ -246,4 +246,14 @@ std::string PM_Time_Mngt_convertTimeToString(time_t time_in, const char* string_
 	strftime(timestamp_string, 100, string_format, time_tm);
   LOG_V(TAG, "%s", timestamp_string);
   return timestamp_string;
+}
+
+/**
+* Convert seconds in tm * structure
+*/
+tm PM_Time_Mngt_convertSecondsToTm(const ulong seconds) {
+  tm local;
+  long l = seconds & LONG_MAX;
+  gmtime_r(&l, &local);
+  return local;
 }
