@@ -60,23 +60,61 @@ const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 
 // Configuration of the GPIOs
 // ---------------------------
 // Button to activate the LCD display
-#define PM_DisplayButton_Pin 18
+#define PM_DisplayButton_Pin  18
 
 // One wire (temperature sensors) is plugged into GPIO 4
-#define ONE_WIRE_BUS          4 
-#define TEMPERATURE_PRECISION 9
+#define ONE_WIRE_BUS           4 
+#define TEMPERATURE_PRECISION 10
 
 // Pump management GPIO
-#define FILTRATION_PUMP      32
-#define PH_PUMP              14
-#define CHL_PUMP             12
+#define FILTRATION_PUMP       32
+#define PH_PUMP               14
+#define CHL_PUMP              12
 
+// Loop tasks scheduling parameters
+//---------------------------------
+// T1 : PM_Task_AnalogPoll
+// T2 : PM_Task_ProcessCommand
+// T3 : PM_Task_PoolManager
+// T4 : PM_Task_GetTemperature
+// T5 : PM_Task_OrpRegulation
+// T6 : PM_Task_pHRegulation
+// T7 : PM_Task_LCD
+// T8 : PM_Task_WebServer
+// T9 : PM_Task_MeasuresPublish
+// T10: PM_Task_SettingsPublish 
+
+//Periods 
+#define PT1 125
+#define PT2 500
+#define PT3 500
+//#define PT4 10000 / (1 << (12 - TEMPERATURE_PRECISION))
+#define PT4 10000
+#define PT5 1000
+#define PT6 1000
+#define PT7 500
+#define PT8 3000
+#define PT9 30000
+// Task10 period is initialized with PUBLISHINTERVAL and can be changed dynamically
+
+//Start offsets to spread tasks along time
+// Task1 has no delay
+#define DT2  190/portTICK_PERIOD_MS
+#define DT3  310/portTICK_PERIOD_MS
+#define DT4  440/portTICK_PERIOD_MS
+#define DT5  560/portTICK_PERIOD_MS
+#define DT6  920/portTICK_PERIOD_MS
+#define DT7  100/portTICK_PERIOD_MS
+#define DT8  850/portTICK_PERIOD_MS
+#define DT9  570/portTICK_PERIOD_MS
+#define DT10 940/portTICK_PERIOD_MS
 // =========================================================================================================
 //                                     Software parameters
 // =========================================================================================================
 
 // Default date & time format
 // ---------------------------
+const char PM_HourMinFormat[6]    ="%Hh%M";
 const char PM_LocalTimeFormat[18] ="%Y-%m-%d %H:%M:%S";
 const char PM_UTCTimeFormat[19]   ="%Y-%m-%dT%H:%M:%SZ";
 
@@ -88,7 +126,7 @@ const char PM_TimeZone[60] = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; // 
 // LCD display parameters
 // ----------------------
 // duration of display inactivity before light off (in seconds)
-#define LCD_DISPLAY_TIMEOUT 30
+#define LCD_DISPLAY_TIMEOUT 60
 
 // duration of a screen display before switching to the next time (in seconds)
 #define LCD_DISPLAY_SCREEN_DURATION 5 

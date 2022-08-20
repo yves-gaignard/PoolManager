@@ -13,6 +13,7 @@
 #include "PM_Log.h"                // Pool manager log management
 #include "PM_Temperature.h"        // Pool manager temperature management
 #include "PM_Utils.h"              // Pool manager utilities
+#include "PM_Parameters.h"         // Pool manager parameters
 
 PM_Temperature::PM_Temperature() {
 }
@@ -127,7 +128,7 @@ float PM_Temperature::getPreciseTempCByIndex(int idx) {
     int max_try = 5; 
     int nb_try = 0;
     while (temperatureC == -127.0 && nb_try < max_try) {
-      _sensors.setResolution(10);
+      _sensors.setResolution(TEMPERATURE_PRECISION);
       temperatureC = _sensors.getTempCByIndex(idx);
       LOG_D(TAG, "Get temperature for index %d: %f ", idx, temperatureC);
       nb_try ++;

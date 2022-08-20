@@ -17,6 +17,22 @@ static const std::string PM_itoa(int i) {
   return _str;
 }
 
+// Convert float to std::string
+static const std::string PM_ftoa(float f, const char * format = "%6.2f") {
+  char buffer[20] = {0};
+  sprintf(buffer, format, f);
+  std::string _str = buffer;
+  return _str;
+}
+
+// Convert double to std::string
+static const std::string PM_dtoa(double f, const char * format = "%6.2f") {
+  char buffer[20] = {0};
+  sprintf(buffer, format, f);
+  std::string _str = buffer;
+  return _str;
+}
+
 // Convert an int to hex string
 template <typename I> 
 static std::string n2hexstr(const I w, size_t hex_len = sizeof(I)<<1) {
@@ -39,5 +55,7 @@ static long hexstr2n( const std::string str) {
         return n;
     }
 }
+
+// Convert a time_t into hh:mm:ss
 
 #endif

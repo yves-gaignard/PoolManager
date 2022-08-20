@@ -27,21 +27,23 @@
 #include "PM_Log.h"                // Pool manager log management
 #include "PM_Structures.h"         // Pool manager structure definitions
 #include "PM_Parameters.h"         // Pool manager parameters
+#include "PM_Config.h"             // Pool manager configuration parameters
 #include "PM_I2CScan.h"            // Pool manager I2C scan tools
 #include "PM_Time_Mngt.h"          // Pool manager time management
 #include "PM_Temperature.h"        // Pool manager temperature management
 #include "PM_Wifi.h"               // Pool manager wifi management
 #include "PM_OTA_Web_Srv.h"        // Pool manager web server management
 #include "PM_LCD.h"                // Pool manager display device management
-#include "PM_Config.h"             // Pool manager configuration parameters
+#include "PM_Screens.h"            // Pool manager screens
 #include "PM_Error.h"              // Pool manager error management
 #include "PM_Utils.h"              // Pool manager utilities
 #include "PM_Pump.h"               // Pool manager pumps management
+#include "PM_Tasks.h"              // Pool manager tasks declarations
 
 
 
 // Intantiate the Pool Manager configuration
-static PM_Config Pool_Configuration;
+PM_Config Pool_Configuration;
 
 // To manage time
 RTC_DS3231 rtc;  // RTC device handle
@@ -52,7 +54,9 @@ static byte I2CDevices[128];
 
 // Instantiate LCD display and a screen template
 PM_LCD lcd(PM_LCD_Device_Addr, PM_LCD_Cols, PM_LCD_Rows);
-std::vector<std::string> screen;
+
+// Instantiate screens
+PM_Screens screens;
 
 // NVS Non Volatile SRAM (eqv. EEPROM)
 Preferences nvs;   
@@ -131,16 +135,9 @@ boolean IsWifiConnected   = false;
 // To manage wifi between multiple networks
 WiFiMulti wifiMulti;
 
-// Display LCD parameters
-time_t  PM_Display_Max_Time_Without_Activity=LCD_DISPLAY_TIMEOUT;  // duration of displaying information
-time_t  PM_Display_Screen_Duration=LCD_DISPLAY_SCREEN_DURATION;    // duration of a screen display before switching to the next time
-time_t  PM_Display_Activation_Start=0;            // time of the last LCD activationion without any user interaction
-time_t  PM_Display_Screen_Start=0;                // time of the current screen start
-int     PM_Display_Current_Screen_Index=1;        // Current displayed screen index 
-int     PM_Display_Screen_Number=2;               // Total screen number
-boolean PM_Display_Activation_Request=true;       // Request to activate the display
 
-
+// Mutex to share access to I2C bus among two tasks: AnalogPoll and StatusLights
+static SemaphoreHandle_t I2CMutex;
 
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
 OneWire oneWire(ONE_WIRE_BUS);
@@ -157,23 +154,15 @@ PM_Temperature PM_TemperatureSensors;
 // Mutex to share access to I2C bus among several tasks
 static SemaphoreHandle_t mutex;
 
-// Tasks declaration
-TaskHandle_t Task_Main_Handle      = NULL;
-TaskHandle_t Task_LCD_Handle       = NULL;
-TaskHandle_t Task_WebServer_Handle = NULL;
-TaskHandle_t Task_GPIO_Handle      = NULL;
-
-void PM_Task_Main      ( void *pvParameters );
-void PM_Task_LCD       ( void *pvParameters );
-void PM_Task_WebServer ( void *pvParameters );
-void PM_Task_GPIO      ( void *pvParameters );
+// Signal to start loop tasks
+volatile bool startTasks = false;
 
 // function declarations
 void PM_getBoardInfo();
 void PM_Time_Init();
 void PM_Display_init    ();
-void PM_Display_screen_0(PM_SwimmingPoolMeasures_str & measures);
-void PM_Display_screen_1(PM_SwimmingPoolMeasures_str & measures);
+void PM_Display_screen_1();
+void PM_Display_screen_2();
 bool PM_NVS_Init();
 bool PM_NVS_Load();
 bool PM_NVS_Save();
@@ -188,10 +177,12 @@ bool saveParam(const char* key, bool val);
 bool saveParam(const char* key, unsigned long val);
 bool saveParam(const char* key, double val);
 bool saveParam(const char* key, float val);
+int  freeRam();
+unsigned stack_hwm();
+void stack_mon(UBaseType_t &hwm);
+void lockI2C();
+void unlockI2C();
 
-// Button declarations
-boolean PM_DisplayButton_State = false;    // Current State
-int     PM_DisplayButton_LastPressed = 0;  // last time it was pressed in millis
 void IRAM_ATTR PM_DisplayButton_ISR();     // Interuption function
 
 // =================================================================================================
@@ -214,6 +205,9 @@ void setup() {
   Log.setTag("PM_Temperature", LOG_LEVEL);
   Log.setTag("PM_Time_Mngt"  , LOG_LEVEL);
   Log.setTag("PM_Wifi"       , LOG_LEVEL);
+  Log.setTag("PM_Tasks"      , LOG_VERBOSE);
+  Log.setTag("PM_Screen"     , LOG_VERBOSE);
+  
 
   // Log.formatTimestampOff(); // time in milliseconds (if necessary)
   LOG_I(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
@@ -221,10 +215,7 @@ void setup() {
   // Print the information of the board
   PM_getBoardInfo();
   
-  //Init LCD
-  PM_Display_init();
-  
-  // Discover all I2C Devices
+    // Discover all I2C Devices
   int I2CDeviceNumber=0;
   I2CDeviceNumber = PM_I2CScan_Scan(I2CDevices);
   // Print the I2C Devices
@@ -250,18 +241,17 @@ void setup() {
   tm* time_tm = localtime(&now);
 	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
   LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
-  
-
-  // Start of diaplaying information
-  PM_Display_Activation_Start=now;
-  
-    // For DEBUG , remove all keys
+ 
+  // For DEBUG , remove all keys
   // nvs.begin(Project.Name.c_str(),false);
   // if ( ! nvs.clear() ) LOG_E(TAG, "Cannot clear the NVS namespace: %s", Project.Name.c_str());
   // nvs.end();
  
   // Initialize NVS data 
   if ( ! PM_NVS_Init()) LOG_I(TAG, "Error on NVS initialization phase. See traces");
+
+  //Init LCD
+  PM_Display_init();
 
   // start Web Server
   PM_OTA_Web_Srv_setup();
@@ -292,10 +282,6 @@ void setup() {
     for ( ;; ) {} //infinite loop as the configuration could not be wrong
   }
   
-   // Display the first screen
-  PM_Display_screen_0(pm_measures_str);
-  PM_Display_Screen_Start=now;
-
   // Attribute the GPIOs
   pinMode(PM_DisplayButton_Pin, INPUT_PULLUP);
   attachInterrupt(PM_DisplayButton_Pin, PM_DisplayButton_ISR, FALLING);
@@ -318,7 +304,7 @@ void setup() {
   OrpPID.SetSampleTime((int)pm_measures.OrpPIDWindowSize);
   OrpPID.SetOutputLimits(0, pm_measures.OrpPIDWindowSize);  //Whatever happens, don't allow continuous injection of Chl for more than a PID Window
 
- // PIDs off at start
+  // PIDs off at start
   PM_SetpHPID (false);
   PM_SetOrpPID(false);
 
@@ -349,188 +335,67 @@ void setup() {
 
   // Create tasks
   //                          Function           Name          Stack  Param PRIO  Handle                core
-  //xTaskCreatePinnedToCore(PM_Task_Main,      "Task_Main",      10000, NULL, 10, &Task_Main_Handle,      0);
-  xTaskCreatePinnedToCore(PM_Task_GPIO,      "Task_GPIO",      10000, NULL,  8, &Task_GPIO_Handle,      0);
-  xTaskCreatePinnedToCore(PM_Task_LCD,       "Task_LCD",       10000, NULL,  6, &Task_LCD_Handle,       1);
-  xTaskCreatePinnedToCore(PM_Task_WebServer, "Task_WebServer", 10000, NULL,  9, &Task_WebServer_Handle, 1);
+  //xTaskCreatePinnedToCore(PM_Task_Main,      "Task_Main",      10000, NULL, 10, nullptr,      0);
+  //xTaskCreatePinnedToCore(PM_Task_GPIO,      "Task_GPIO",      10000, NULL,  8, nullptr,      0);
 
-  // Infinite loop to never go to main loop. Everything is treated in a task 
-  for( ;; ) {}
+  // Create loop tasks in the scheduler.
+  //------------------------------------
+  int app_cpu = xPortGetCoreID();
+
+  LOG_I(TAG, "Creating the loop tasks");
+  // Create I2C sharing mutex
+  I2CMutex = xSemaphoreCreateMutex();
+
+  // Create tasks
+  //                          Function                    Name               Stack  Param PRIO  Handle                core
+  //xTaskCreatePinnedToCore(PM_Task_AnalogPoll,      "PM_Task_AnalogPoll",      3072, NULL, 1, nullptr,            app_cpu);  // Analog measurement polling task
+  //  xTaskCreatePinnedToCore(PM_Task_ProcessCommand,  "PM_Task_ProcessCommand",  3072, NULL, 1, nullptr,            app_cpu); // MQTT commands processing
+  xTaskCreatePinnedToCore(PM_Task_PoolManager,     "PM_Task_PoolManager",     3072, NULL, 1, nullptr,            app_cpu); // Pool Manager: Supervisory task
+  xTaskCreatePinnedToCore(PM_Task_GetTemperature,  "PM_Task_GetTemperature",  3072, NULL, 1, nullptr,            app_cpu); // Temperatures measurement
+  //xTaskCreatePinnedToCore(PM_Task_OrpRegulation,   "PM_Task_OrpRegulation",   2048, NULL, 1, nullptr,            app_cpu); // ORP regulation loop
+  //xTaskCreatePinnedToCore(PM_Task_pHRegulation,    "PM_Task_pHRegulation",    2048, NULL, 1, nullptr,            app_cpu); // pH regulation loop
+  xTaskCreatePinnedToCore(PM_Task_LCD,             "Task_LCD",                3072, NULL, 1, nullptr,            app_cpu);
+  //xTaskCreatePinnedToCore(PM_Task_WebServer, "Task_WebServer", 10000, NULL,  9, nullptr, 1);
+  //  xTaskCreatePinnedToCore(PM_Task_MeasuresPublish, "PM_Task_MeasuresPublish", 3072, NULL, 1, &pubMeasTaskHandle, app_cpu); // Measures MQTT publish 
+  //  xTaskCreatePinnedToCore(PM_Task_SettingsPublish, "PM_Task_SettingsPublish", 3072, NULL, 1, &pubSetTaskHandle,  app_cpu);  // MQTT Settings publish 
+
+  //display remaining RAM/Heap space.
+  LOG_I(TAG, "[memCheck] Stack: %d bytes - Heap: %d bytes",stack_hwm(),freeRam());
+
+  // Display the first screen
+  PM_Display_screen_1();
+
+  // and the second screen
+  PM_Display_screen_2();
+
+  // Start loops tasks
+  LOG_I(TAG, "Init done, starting loop tasks");
+  startTasks = true;
+
+  delay(1000);          // wait for tasks to start
+
 }
 // =================================================================================================
 //                                   LOOP OF POOL MANAGER
 // =================================================================================================
 void loop(void) {
-   // Nothing here
+  delay(1000);
+  vTaskDelete(nullptr);
 }
 
-// =================================================================================================
-//                                  MAIN TASK OF POOL MANAGER
-// =================================================================================================
-void PM_Task_Main      ( void *pvParameters ) {
-  //const char *pcTaskName = "Task_Main";
-  UBaseType_t uxPriority;
-  uxPriority = uxTaskPriorityGet( NULL );
-  tm * time_tm;
-  char timestamp_str[20]; 
-  for( ;; ) {
-    time(&now);
-    time_tm = localtime(&now);
-	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
-    vTaskDelay( pdMS_TO_TICKS( 50000 ) );
-  }
-}
-// =================================================================================================
-//                               LCD MANAGEMENT TASK OF POOL MANAGER
-// =================================================================================================
-void PM_Task_LCD       ( void *pvParameters ) {
-  //const char *pcTaskName = "Task_LCD";
-  UBaseType_t uxPriority;
-  uxPriority = uxTaskPriorityGet( NULL );
-  tm * time_tm;
-  char timestamp_str[20];
-  for( ;; ) {
-    time(&now);
-    time_tm = localtime(&now);
-	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
-
-    // if lcd display button is pressed then set the display ON in case of OFF
-    if ( PM_Display_Activation_Request == true) {
-      if (lcd.getDisplayState() == false ) {  
-        // the LCD is OFF. We just set it ON again
-        lcd.display();
-        LOG_V(TAG, "%s : Display is shown",timestamp_str);
-        // reset the display duration counter
-        PM_Display_Activation_Start=now;
-      }
-      PM_Display_Activation_Request=false;
-    }
-
-    // If the display is ON
-    if (lcd.getDisplayState() == true) {
-      // if the timout of the current screen is reached
-      if ( (now - PM_Display_Screen_Start) >= PM_Display_Screen_Duration) { 
-        // display the next screen
-        int screen_index= (PM_Display_Current_Screen_Index+1)%PM_Display_Screen_Number;
-        LOG_V(TAG, "%s : Screen index %d",timestamp_str, screen_index);
-        switch (screen_index) {
-          case 0 : PM_Display_screen_0(pm_measures_str);
-              PM_Display_Screen_Start=now;
-              LOG_D(TAG, "%s : Display screen %d",timestamp_str, screen_index);
-            break;
-          case 1 : PM_Display_screen_1(pm_measures_str);
-              PM_Display_Screen_Start=now;
-              LOG_D(TAG, "%s : Display screen %d",timestamp_str, screen_index);
-            break;
-          default:
-            LOG_E(TAG, "%s : Cannot Display screen %d",timestamp_str, screen_index);
-        }
-        PM_Display_Current_Screen_Index=screen_index;
-      } 
-
-      // if no_activity at all during MAX_WITHOUT_ACTIVITES then stop the display
-      if (now - PM_Display_Activation_Start >= PM_Display_Max_Time_Without_Activity ) {
-        lcd.noDisplay();
-        lcd.noBacklight();
-        LOG_D(TAG, "%s : Display is stopped",timestamp_str);
-      }
-    }
-    vTaskDelay( pdMS_TO_TICKS( 5000 ) );
-  }
-}
-// =================================================================================================
-//                                     WEB SERVER MANAGEMENT TASK OF POOL MANAGER
-// =================================================================================================
-void PM_Task_WebServer ( void *pvParameters ) {
-  //const char *pcTaskName = "Task_WebServer";
-  UBaseType_t uxPriority;
-  uxPriority = uxTaskPriorityGet( NULL );
-  tm * time_tm;
-  char timestamp_str[20];
-  for( ;; ) {
-    time(&now);
-    time_tm = localtime(&now);
-	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
-
-    vTaskDelay( pdMS_TO_TICKS( 3000 ) );
-  }
-}
-// =================================================================================================
-//                                SENSOR MANAGEMENT TASK OF POOL MANAGER
-// =================================================================================================
-void PM_Task_GPIO      ( void *pvParameters ) {
-  //const char *pcTaskName = "Task_GPIO";
-  UBaseType_t uxPriority;
-  uxPriority = uxTaskPriorityGet( NULL );
-  tm * time_tm;
-  char timestamp_str[20];
-
-  std::string deviceName;
-  float preciseTemperatureC = 0.0;
-  //int   temperatureC =0;
-
-  for( ;; ) {
-    time(&now);
-    time_tm = localtime(&now);
-	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
-
-    char timestamp_str[20];
-    tm* time_tm = localtime(&now);
-	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    LOG_I(TAG, "Current date and local time is: %s", timestamp_str);
-
-    PM_TemperatureSensors.requestTemperatures();
-    for (int i = 0 ; i < PM_TemperatureSensors.getDeviceCount(); i++) {
-      deviceName = PM_TemperatureSensors.getDeviceNameByIndex(i);
-
-      preciseTemperatureC = PM_TemperatureSensors.getPreciseTempCByName(deviceName);
-      LOG_I(TAG, "Sensor: %19s : % 4.2f°C", deviceName.c_str(),preciseTemperatureC);
-      //temperatureC = PM_TemperatureSensors.getTempCByName(deviceName);
-      //LOG_D(TAG, "Sensor: %19s : %6d°C", deviceName.c_str(),temperatureC);
-
-      if (deviceName == insideThermometerName) {
-        pm_measures.InAirTemp = preciseTemperatureC;
-        saveParam("InAirTemp", pm_measures.InAirTemp);
-      }
-      else if (deviceName == outsideThermometerName){
-        pm_measures.OutAirTemp = preciseTemperatureC;
-        saveParam("OutAirTemp", pm_measures.OutAirTemp);
-      } 
-      else if (deviceName == waterThermometerName) {
-        pm_measures.WaterTemp = preciseTemperatureC;
-        saveParam("WaterTemp", pm_measures.WaterTemp);
-      }
-    }
-
-    vTaskDelay( pdMS_TO_TICKS( 15000 ) );
-  }
-
-}
-// =================================================================================================
-//                              DISPLAY BUTTON INTERRUPTION MANAGEMENT
-// =================================================================================================
-void IRAM_ATTR PM_DisplayButton_ISR() {
-  if (millis() - PM_DisplayButton_LastPressed > 100) { // Software debouncing button
-    LOG_I(TAG, "Display button pressed");
-    PM_Display_Activation_Request = true;
-    PM_DisplayButton_State = !PM_DisplayButton_State;
-  }
-  PM_DisplayButton_LastPressed = millis();
-}
 // =================================================================================================
 //                              SCREEN DEFINITIONS
 // =================================================================================================
-/*  
+
+void PM_Display_init    () {
+  std::vector<std::string> screen;
+  /*  
    |--------------------|
    |         1         2|
    |12345678901234567890|
    |--------------------|
-   |     SCREEN INIT    |
+   |     SCREEN 0       |
    |--------------------|
    |Pool Manager        |
    |Version: 1.0.0      |
@@ -538,21 +403,27 @@ void IRAM_ATTR PM_DisplayButton_ISR() {
    |Yves Gaignard       |
    |--------------------|
 */ 
-void PM_Display_init    () {
-  lcd.init();
-  lcd.clear();
-  lcd.display();
-  lcd.backlight();
-
   screen.clear();
   screen.push_back(Project.Name);
   screen.push_back("Version: " + Project.Version);
   screen.push_back("");
   screen.push_back(Project.Author);
 
+  screens.addScreen("Screen Init");
+  screens.setCurrentScreen(0);
+  screens.setInactivityTimeOutReset();
+
+  lcd.init();
+  lcd.clear();
+  lcd.display();
+  lcd.backlight();
   lcd.printScreen(screen);
 }
-/*  
+
+void PM_Display_screen_1() {
+  std::vector<std::string> screen;
+  std::string DisplayLine;
+   /*  
    |--------------------|
    |         1         2|
    |12345678901234567890|
@@ -564,25 +435,46 @@ void PM_Display_init    () {
    |Filter: 12h15 / 16h | 
    |pH-:12.6l Cl:15.2l  |
    |--------------------|
-*/  
-void PM_Display_screen_0(PM_SwimmingPoolMeasures_str & measures) {
-  std::string DisplayLine;
+  */  
+  char degreeAsciiChar[2];
+  sprintf(degreeAsciiChar, "%c", 176);
+
+  screen.clear();
+  std::string InAirTemp  = PM_itoa((int) (pm_measures.InAirTemp + 0.5 - (pm_measures.InAirTemp<0)));
+  std::string WaterTemp  = PM_itoa((int) (pm_measures.WaterTemp + 0.5 - (pm_measures.WaterTemp<0)));
+  std::string OutAirTemp = PM_itoa((int) (pm_measures.OutAirTemp + 0.5 - (pm_measures.OutAirTemp<0)));
+  screen.push_back("In:"+InAirTemp+degreeAsciiChar+" W:"+WaterTemp+degreeAsciiChar+" Out:"+OutAirTemp+degreeAsciiChar);
+
+  std::string pHValue  = PM_dtoa(pm_measures.pHValue, "%3.2f");
+  std::string OrpValue = PM_dtoa(pm_measures.OrpValue, "%4.0f");
+  screen.push_back("PH:"+pHValue+" Cl:"+OrpValue);
+
+  tm * time_tm;
+  char timestamp_str[20];
+  time_tm = localtime(&pm_measures.FilteredDuration);
+	strftime(timestamp_str, sizeof(timestamp_str), PM_HourMinFormat, time_tm);
+  std::string FilteredDuration = timestamp_str;
+  time_tm = localtime(&pm_measures.DayFiltrationDuration);
+	strftime(timestamp_str, sizeof(timestamp_str), PM_HourMinFormat, time_tm);
+  std::string DayFiltrationDuration = timestamp_str;
+  screen.push_back("Filter:"+FilteredDuration+" / "+DayFiltrationDuration);
+  
+  std::string pHMinusVolume  = PM_ftoa(pm_measures.pHMinusVolume, "%3.2f");
+  std::string ChlorineVolume = PM_ftoa(pm_measures.ChlorineVolume, "%3.2f");
+  screen.push_back("PH-:"+pHMinusVolume+" Cl:"+ChlorineVolume);
+
+  screens.addScreen("Screen 1");
+  screens.setCurrentScreen(1);
+
   lcd.clear();
   lcd.display();
   lcd.backlight();
-  char degreeAsciiChar[2];
-  sprintf(degreeAsciiChar, "%c", 176);
-  screen[0] = "In:"+measures.InAirTemp_str+degreeAsciiChar+" W:"+measures.WaterTemp_str+degreeAsciiChar+" Out:"+measures.OutAirTemp_str+degreeAsciiChar;
-  DisplayLine = "PH:"+measures.pH_str+" Cl:"+measures.Chlorine_str;
-  if (measures.Chlorine_str < measures.ChlorineMin_str) DisplayLine+=" <"+measures.ChlorineMin_str;
-  if (measures.Chlorine_str > measures.ChlorineMax_str) DisplayLine+=" >"+measures.ChlorineMax_str;
-  screen[1] = DisplayLine;
-  screen[2] = "Filter:"+measures.DayFilterTime_str+" / "+measures.MaxDayFilterTime_str;
-  screen[3] = "PH-:"+measures.pHMinusVolume_str+" Cl:"+measures.ChlorineVolume_str;
-
   lcd.printScreen(screen);
 }
-/*
+
+void PM_Display_screen_2() {
+  std::vector<std::string> screen;
+  /*
    |--------------------|
    |         1         2|
    |12345678901234567890|
@@ -594,17 +486,28 @@ void PM_Display_screen_0(PM_SwimmingPoolMeasures_str & measures) {
    |Pump pH-:OFF Cl:OFF | or |Pump pH-:ON  Cl:ON  |
    |Max pH-:20l Cl:20l  |
    |--------------------|
-*/
-void PM_Display_screen_1(PM_SwimmingPoolMeasures_str & measures) {
+  */
+  screen.clear();
+
+  std::string Pressure = PM_itoa((int) (pm_measures.Pressure + 0.5 - (pm_measures.Pressure<0)));
+  std::string FilterPumpState = (pm_measures.FilterPumpState == true) ? " ON" : "OFF";
+  screen.push_back("Filter:"+FilterPumpState+" P:"+Pressure+"hPa");
+
+  std::string ConsumedInstantaneousPower = PM_itoa(pm_measures.ConsumedInstantaneousPower);
+  std::string DayConsumedPower = PM_itoa(pm_measures.DayConsumedPower);
+  screen.push_back("Pow:"+ConsumedInstantaneousPower+" Day:"+DayConsumedPower+"kWh");
+
+  screen.push_back("Pump PH-: N/A  Cl: N/A ");
+
+  std::string pHMinusTankFill = PM_itoa((int) (pm_measures.pHMinusTankFill + 0.5 - (pm_measures.pHMinusTankFill<0)));
+  std::string ChlorineTankFill = PM_itoa((int) (pm_measures.ChlorineTankFill + 0.5 - (pm_measures.ChlorineTankFill<0)));
+  screen.push_back("PH-:"+pHMinusTankFill+"% Cl:"+ChlorineTankFill+"%");
+
+  screens.addScreen("Screen 2");
+  screens.setCurrentScreen(2);
   lcd.clear();
   lcd.display();
   lcd.backlight();
-
-  screen[0] = "Filter:"+measures.FilterPumpState_str+" P:"+measures.Pressure_str+"hPa";
-  screen[1] = "Pow:"+measures.ConsumedInstantaneousPower_str+" Day:"+measures.Chlorine_str+"kWh";
-  screen[2] = "Pump PH-:"+measures.pHMinusPumpState_str+" Cl:"+measures.ChlorinePumpState;
-  screen[3] = "Max PH-:"+measures.pHMinusMaxVolume_str+" Cl:"+measures.ChlorineMaxVolume_str;
-
   lcd.printScreen(screen);
 }
 // =================================================================================================

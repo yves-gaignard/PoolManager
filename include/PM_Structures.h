@@ -113,5 +113,4 @@ struct PM_SwimmingPoolMeasures_str {
   std::string  ChlorineMaxVolume_str;          // Volume max of the Chlorine container (string format 20.0 l)
 };
 
-
 #endif
