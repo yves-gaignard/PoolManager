@@ -8,7 +8,7 @@
 #include <FreeRTOS.h>
 #include "PM_LCD.h"
 
-void PM_Task_PoolManager    ( void *pvParameters );
+void PM_Task_Pool_Manager   ( void *pvParameters );
 void PM_Task_GetTemperature ( void *pvParameters );
 void PM_Task_LCD            ( void *pvParameters );
 void PM_Task_WebServer      ( void *pvParameters );

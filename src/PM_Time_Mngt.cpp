@@ -17,8 +17,8 @@
 
 #include <Arduino.h>
 #include "PM_Pool_Manager.h"
-#include <PM_Time_Mngt.h>
-#include <PM_Parameters.h>
+#include "PM_Time_Mngt.h"
+#include "PM_Parameters.h"
 #include <string.h>
 #include <time.h>
 #include <sys/time.h>
@@ -54,9 +54,51 @@ void sntp_sync_time(struct timeval *tv)
 }
 #endif
 
+// Called-back function when the time is setup from NTP
 void PM_Time_Mngt_time_sync_notification_cb(struct timeval *tv)
 {
-    LOG_I(TAG, "Notification of a time synchronization event");
+  LOG_I(TAG, "Notification of a time synchronization event");
+
+  // If there is no RTC module or if it lost its power, set the time with the NTP time
+  if (isRTCLostPower == true || isRTCFound == true) {
+    LOG_I(TAG, "Initialize RTC time with NTP server");
+
+    // Get current time. It has been sent by NTP calls.
+    time(&now);
+
+    // adjust time of rtc with the time get from NTP server
+    DateTime DT_now (now);
+    if (DT_now.isValid()) {
+      char DT_now_str[20]= "YYYY-MM-DD hh:mm:ss";
+      DT_now.toString(DT_now_str);
+      LOG_I(TAG, "Adjust the time of RTC with the NTP time: %s", DT_now_str);
+      rtc.adjust(DT_now);
+    }
+    else {
+      LOG_E(TAG, "Cannot set time to RTC as DT_now is not valid !!!!" );
+    }
+  }
+  
+  /*
+  // if there is a RTC module, set the time with RTC time
+  if (isRTCFound == true) {
+    
+    // set time with the RTC time
+    DateTime DT_now (rtc.now());
+    char DT_now_str[20]= "YYYY-MM-DD hh:mm:ss";
+    DT_now.toString(DT_now_str);
+    LOG_I(TAG, "Get the time from RTC: %s", DT_now_str);
+    
+    // set the time
+    now = DT_now.unixtime();
+    LOG_I(TAG, "rtc.now = %u", now );
+    timeval tv = {now, 0}; 
+    timezone tz = {0,0} ;
+    int ret = settimeofday(&tv, &tz);
+    if ( ret != 0 ) {LOG_E(TAG, "Cannot set time from RTC" ); };
+    
+  }
+  */
 }
 
 void PM_Time_Mngt_initialize_time(void)

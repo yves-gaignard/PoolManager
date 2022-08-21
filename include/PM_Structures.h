@@ -49,10 +49,12 @@ struct PM_SwimmingPoolMeasures {
   bool    Orp_RegulationOnOff;             
   bool    FilterPumpState;                // State of the filtering pump (true, false)
   bool    pHMinusPumpState;               // State of the pH- pump (true, false)
-  bool    ChlorinePumpState;              // State of the pH- pump (true, false)
+  bool    ChlorinePumpState;              // State of the Chlorine pump (true, false)
+  uint8_t DelayPIDs;                      // Delay of starting PID computation after the start of a filtration pump
   float   InAirTemp;                      // Inside air temperature in °C
   float   WaterTemp;                      // Water temperature in °C of the swimming pool
   float   OutAirTemp;                     // Outside air temperature in °C
+  float   WaterTempLowThreshold;          // Water temperature low threshold to compute PIDs
   double  pHValue;                        // Current pH value
   ulong   pHPIDWindowSize;
   ulong   pHPIDwindowStartTime;           // pH PID window start time
@@ -82,6 +84,8 @@ struct PM_SwimmingPoolMeasures {
   int32_t ConsumedInstantaneousPower;     // Instantaneous Power in Watt consumed by the filtration pump
   int32_t DayConsumedPower;               // Power in Watt consumed by the filtration pump since the begin of the day
   float   Pressure;                       // Pressure in the filtering device (unit hPa)
+  float   PressureHighThreshold;          // Pressure to consider the filtration pump is started
+  float   PressureMedThreshold;           // Pressure to consider the filtration pump is stopped
   float   pHMinusTankVolume;              // Max volume of the pH- tank
   float   ChlorineTankVolume;             // Max volume of the Chlorine tank
   float   pHMinusTankFill;                // % Fill of volume of the pH- tank
