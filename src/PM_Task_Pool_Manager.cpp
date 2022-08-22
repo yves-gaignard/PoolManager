@@ -129,8 +129,6 @@ void PM_Task_Pool_Manager(void *pvParameters)
         !PSIError && now >= pm_measures.FiltrationStartTime && now < pm_measures.FiltrationEndTime )
         FiltrationPump.Start();
     
-    now = pftime::time(nullptr); // get current time
-    tm_now = pftime::localtime(&now);
     // start PIDs with delay after FiltrationStart in order to let the readings stabilize
     // start inhibited if water temperature below threshold and/or in winter mode
     if (FiltrationPump.IsRunning() && pm_measures.AutoMode && !pm_measures.WinterMode && !pHPID.GetMode() &&

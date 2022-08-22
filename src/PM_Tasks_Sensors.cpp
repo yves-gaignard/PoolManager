@@ -102,7 +102,7 @@ void AnalogInit()
   PM_ads.setSamples(3);
 }
 
-void AnalogPoll(void *pvParameters)
+void PM_Task_AnalogPoll(void *pvParameters)
 {
   while (!startTasks) ;
 
