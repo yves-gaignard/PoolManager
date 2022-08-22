@@ -75,7 +75,7 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   false, // boolean FilterPumpState;                // State of the filtering pump (true, false)
   false, // boolean pHMinusPumpState;               // State of the pH- pump (true, false)
   false, // boolean ChlorinePumpState;              // State of the Chlorine pump (true, false)
-  20,    // uint_8  DelayPIDs;                      // Delay of starting PID computation after the start of a filtration pump
+  10,    // uint_8  DelayPIDs;                      // Delay of starting PID computation after the start of a filtration pump (in minutes)
   -20.0, // float   InAirTemp;                      // Inside air temperature in °C 
   -20.0, // float   WaterTemp;                      // Water temperature in °C of the swimming pool
   -20.0, // float   OutAirTemp;                     // Outside air temperature in °C
@@ -89,6 +89,8 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   2700000.0, //double  pH_Kp;
   0.0,   // double  pH_Ki;
   0.0,   // double  pH_Kd;
+  3.49625783, // double  pHCalibCoeffs0;
+  -2.011338191, // double  pHCalibCoeffs1;
   250.0, // double  OrpValue;                       // Current redox measure unit: mV
   1800000, //ulong   OrpPIDWindowSize;
   0,     // ulong   OrpPIDwindowStartTime;          // Orp PID window start time   
@@ -98,6 +100,8 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   2700000.0, //double  Orp_Kp;
   0.0,   // double  Orp_Ki;
   0.0,   // double  Orp_Kd;
+  -876.430775, // double  OrpCalibCoeffs0;
+  2328.8985,   // double  OrpCalibCoeffs1;
   0,     // time_t  FilteredDuration;               // Filtration Duration since the begin of the day
   0,     // time_t  DayFiltrationDuration;          // Maximum Filtration duration for the whole day
   0,     // time_t  FiltrationStartTime;            // Next start time of the filtration
@@ -111,6 +115,8 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   0.0,   // float   Pressure;                       // Pressure in the filtering device (unit hPa)
   1.8,   // float   PressureHighThreshold;          // Pressure to consider the filtration pump is started
   0.7,   // float   PressureMedThreshold;           // Pressure to consider the filtration pump is stopped
+  1.0,   // double  PSICalibCoeffs0;
+  0.0,   // double  PSICalibCoeffs1;
   PM_pH_Tank_Volume,        // float   pHMinusTankVolume;              // Max volume of the pH- tank
   PM_Chlorine_Tank_Volume,  // float   ChlorineTankVolume;             // Max volume of the Chlorine tank
   100.0, // float   pHMinusTankFill;                // % Fill of volume of the pH- tank
@@ -210,8 +216,10 @@ void setup() {
   Log.setTag("PM_Wifi"             , LOG_LEVEL);
   Log.setTag("PM_Tasks"            , LOG_LEVEL);
   Log.setTag("PM_Task_Pool_Manager", LOG_VERBOSE);
+  Log.setTag("PM_Tasks_Sensors"    , LOG_VERBOSE);
+  Log.setTag("PM_Tasks_Regulation" , LOG_VERBOSE);
   Log.setTag("PM_Screen"           , LOG_LEVEL);
-  
+    
   // Log.formatTimestampOff(); // time in milliseconds (if necessary)
   LOG_I(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
 
@@ -355,8 +363,8 @@ void setup() {
   //  xTaskCreatePinnedToCore(PM_Task_ProcessCommand,  "PM_Task_ProcessCommand",  3072, NULL, 1, nullptr,            app_cpu); // MQTT commands processing
   xTaskCreatePinnedToCore(PM_Task_Pool_Manager,    "PM_Task_Pool_Manager",    3072, NULL, 1, nullptr,            app_cpu); // Pool Manager: Supervisory task
   xTaskCreatePinnedToCore(PM_Task_GetTemperature,  "PM_Task_GetTemperature",  3072, NULL, 1, nullptr,            app_cpu); // Temperatures measurement
-  //xTaskCreatePinnedToCore(PM_Task_OrpRegulation,   "PM_Task_OrpRegulation",   2048, NULL, 1, nullptr,            app_cpu); // ORP regulation loop
-  //xTaskCreatePinnedToCore(PM_Task_pHRegulation,    "PM_Task_pHRegulation",    2048, NULL, 1, nullptr,            app_cpu); // pH regulation loop
+  xTaskCreatePinnedToCore(PM_Task_OrpRegulation,   "PM_Task_OrpRegulation",   2048, NULL, 1, nullptr,            app_cpu); // ORP regulation loop
+  xTaskCreatePinnedToCore(PM_Task_pHRegulation,    "PM_Task_pHRegulation",    2048, NULL, 1, nullptr,            app_cpu); // pH regulation loop
   xTaskCreatePinnedToCore(PM_Task_LCD,             "Task_LCD",                3072, NULL, 1, nullptr,            app_cpu);
   //xTaskCreatePinnedToCore(PM_Task_WebServer, "Task_WebServer", 10000, NULL,  9, nullptr, 1);
   //  xTaskCreatePinnedToCore(PM_Task_MeasuresPublish, "PM_Task_MeasuresPublish", 3072, NULL, 1, &pubMeasTaskHandle, app_cpu); // Measures MQTT publish 
@@ -665,6 +673,8 @@ bool PM_NVS_Load() {
   pm_measures.pH_Kp                      = nvs.getDouble("pH_Kp"          ,0.0);
   pm_measures.pH_Ki                      = nvs.getDouble("pH_Ki"          ,0.0);
   pm_measures.pH_Kd                      = nvs.getDouble("pH_Kd"          ,0.0);
+  pm_measures.pHCalibCoeffs0             = nvs.getDouble("pHCalibCoeffs0" ,0.0);
+  pm_measures.pHCalibCoeffs1             = nvs.getDouble("pHCalibCoeffs1" ,0.0);
   pm_measures.Orp_RegulationOnOff        = nvs.getBool  ("OrpRegulationOn",false);
   pm_measures.OrpValue                   = nvs.getDouble("OrpValue"       ,0);
   pm_measures.OrpPIDWindowSize           = nvs.getULong ("OrpPIDWindowSiz",0);
@@ -675,6 +685,8 @@ bool PM_NVS_Load() {
   pm_measures.Orp_Kp                     = nvs.getDouble("Orp_Kp"         ,0.0);
   pm_measures.Orp_Ki                     = nvs.getDouble("Orp_Ki"         ,0.0);
   pm_measures.Orp_Kd                     = nvs.getDouble("Orp_Kd"         ,0.0);
+  pm_measures.OrpCalibCoeffs0            = nvs.getDouble("OrpCalibCoeffs0",0.0);
+  pm_measures.OrpCalibCoeffs1            = nvs.getDouble("OrpCalibCoeffs1",0.0);
   pm_measures.DelayPIDs                  = nvs.getUChar ("DelayPIDs"      ,0);
   pm_measures.FilteredDuration           = nvs.getULong ("FiltDuration"   ,0);
   pm_measures.DayFiltrationDuration      = nvs.getULong ("DayFiltDuration",0);
@@ -689,6 +701,8 @@ bool PM_NVS_Load() {
   pm_measures.Pressure                   = nvs.getFloat ("Pressure"       ,0.0);
   pm_measures.PressureHighThreshold      = nvs.getFloat ("PHighThreshold" ,0.0);
   pm_measures.PressureMedThreshold       = nvs.getFloat ("PMedThreshold"  ,0.0);
+  pm_measures.PSICalibCoeffs0            = nvs.getFloat ("PSICalibCoeffs0",0.0);
+  pm_measures.PSICalibCoeffs1            = nvs.getFloat ("PSICalibCoeffs1",0.0);
   pm_measures.FilterPumpState            = nvs.getBool  ("FilterPumpOn"   ,false);
   pm_measures.pHMinusPumpState           = nvs.getBool  ("pHMinusPumpOn"  ,false);
   pm_measures.ChlorinePumpState          = nvs.getBool  ("ChlorinePumpOn" ,false);
@@ -709,6 +723,7 @@ bool PM_NVS_Load() {
   LOG_D(TAG, "%d, %d", pm_measures.pHPumpUpTimeLimit, pm_measures.OrpPumpUpTimeLimit);
   LOG_D(TAG, "%4.0f, %4.0f, %8.0f, %3.0f, %3.0f", pm_measures.pHPIDOutput, pm_measures.pH_SetPoint, pm_measures.pH_Kp, pm_measures.pH_Ki, pm_measures.pH_Kd);
   LOG_D(TAG, "%4.0f, %4.0f, %8.0f, %3.0f, %3.0f", pm_measures.OrpPIDOutput, pm_measures.Orp_SetPoint, pm_measures.Orp_Kp, pm_measures.Orp_Ki, pm_measures.Orp_Kd);
+  LOG_D(TAG, "%f, %f, %f, %f, %f, %f", pm_measures.pHCalibCoeffs0, pm_measures.pHCalibCoeffs1, pm_measures.OrpCalibCoeffs0, pm_measures.OrpCalibCoeffs1, pm_measures.PSICalibCoeffs0, pm_measures.PSICalibCoeffs1);
   LOG_D(TAG, "%d, %d", pm_measures.FilteredDuration, pm_measures.DayFiltrationDuration);
   LOG_D(TAG, "%d, %d", pm_measures.FiltrationStartTime, pm_measures.FiltrationEndTime);
   LOG_D(TAG, "%2.2f, %2.2f", pm_measures.pHMinusFlowRate, pm_measures.ChlorineFlowRate);
@@ -750,6 +765,8 @@ bool PM_NVS_Save() {
   i += nvs.putDouble("pH_Kp",           pm_measures.pH_Kp);
   i += nvs.putDouble("pH_Ki",           pm_measures.pH_Ki);
   i += nvs.putDouble("pH_Kd",           pm_measures.pH_Kd);
+  i += nvs.putDouble("pHCalibCoeffs0",  pm_measures.pHCalibCoeffs0);
+  i += nvs.putDouble("pHCalibCoeffs1",  pm_measures.pHCalibCoeffs1);
   i += nvs.putBool  ("OrpRegulationOn", pm_measures.Orp_RegulationOnOff);
   i += nvs.putDouble("OrpValue",        pm_measures.OrpValue);
   i += nvs.putULong ("OrpPIDWindowSiz", pm_measures.OrpPIDWindowSize);
@@ -760,6 +777,8 @@ bool PM_NVS_Save() {
   i += nvs.putDouble("Orp_Kp",          pm_measures.Orp_Kp);
   i += nvs.putDouble("Orp_Ki",          pm_measures.Orp_Ki);
   i += nvs.putDouble("Orp_Kd",          pm_measures.Orp_Kd);
+  i += nvs.putDouble("OrpCalibCoeffs0", pm_measures.OrpCalibCoeffs0);
+  i += nvs.putDouble("OrpCalibCoeffs1", pm_measures.OrpCalibCoeffs1);
   i += nvs.putUChar ("DelayPIDs",       pm_measures.DelayPIDs);
   i += nvs.putULong ("FiltDuration",    pm_measures.FilteredDuration);
   i += nvs.putULong ("DayFiltDuration", pm_measures.DayFiltrationDuration);
@@ -774,6 +793,8 @@ bool PM_NVS_Save() {
   i += nvs.putFloat ("Pressure",        pm_measures.Pressure);
   i += nvs.putFloat ("PHighThreshold",  pm_measures.PressureHighThreshold);
   i += nvs.putFloat ("PMedThreshold",   pm_measures.PressureMedThreshold);
+  i += nvs.putFloat ("PSICalibCoeffs0", pm_measures.PSICalibCoeffs0);
+  i += nvs.putFloat ("PSICalibCoeffs1", pm_measures.PSICalibCoeffs1);
   i += nvs.putBool  ("FilterPumpOn",    pm_measures.FilterPumpState);
   i += nvs.putBool  ("pHMinusPumpOn",   pm_measures.pHMinusPumpState);
   i += nvs.putBool  ("ChlorinePumpOn",  pm_measures.ChlorinePumpState);

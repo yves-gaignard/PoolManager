@@ -11,6 +11,7 @@
 #include <Arduino.h>
 #include <RTClib.h>
 #include <PID_v1.h>             // Library for PID controller (Proportional–Integral–Derivative controller)
+#include <ADS1115.h>
 #include "PM_Log.h"
 #include "PM_LCD.h"
 #include "PM_Structures.h"
@@ -43,6 +44,9 @@ extern time_t     now;  // Current time (global variable)
 // Instantiate object to manage all temperature sensors
 extern PM_Temperature PM_TemperatureSensors;
 
+// Instantiate object to manage all other sensors
+extern ADS1115Scanner PM_ads;
+
 // Various flags
 extern volatile bool startTasks;                       // Signal to start loop tasks
 extern bool EmergencyStopFiltPump;                     // Filtering pump stopped manually; needs to be cleared to restart
@@ -54,6 +58,9 @@ extern void PM_Display_screen_1();
 extern void PM_Display_screen_2();
 
 extern void PM_CalculateNextFiltrationPeriods();
+
+extern void lockI2C();
+extern void unlockI2C();
 
 extern bool saveParam(const char* key, uint8_t val);
 extern bool saveParam(const char* key, bool val);
