@@ -1,9 +1,9 @@
 /*
   Copyright 2022 - Yves Gaignard
   
-  Pool Manager tasks
+  Pool Manager tasks for display and web server
 */
-#define TAG "PM_Tasks"
+#define TAG "PM_Tasks_Display"
 
 #include <Arduino.h>
 #include <FreeRTOS.h>
@@ -22,34 +22,6 @@ boolean PM_Display_Activation_Request=true;
 boolean PM_DisplayButton_State = false;    // Current State
 int     PM_DisplayButton_LastPressed = 0;  // last time it was pressed in millis
 
-
-// =================================================================================================
-//                                  MAIN TASK OF POOL MANAGER
-// =================================================================================================
-void PM_Task_PoolManager      ( void *pvParameters ) {
-  
-  while (!startTasks) ;
-  vTaskDelay(DT3);                                // Scheduling offset 
-
-  TickType_t period = PT3;  
-  TickType_t ticktime = xTaskGetTickCount();
-  static UBaseType_t hwm = 0;
-
-  //UBaseType_t uxPriority;
-  //uxPriority = uxTaskPriorityGet( NULL );
-  tm * time_tm;
-  char timestamp_str[20]; 
-  time_t now;
-  for( ;; ) {
-    time(&now);
-    time_tm = localtime(&now);
-	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    //LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
-
-    stack_mon(hwm);
-    vTaskDelayUntil(&ticktime,period);
-  }
-}
 // =================================================================================================
 //                               LCD MANAGEMENT TASK OF POOL MANAGER
 // =================================================================================================
@@ -147,67 +119,7 @@ void PM_Task_WebServer ( void *pvParameters ) {
     vTaskDelayUntil(&ticktime,period);
   }
 }
-// =================================================================================================
-//                                GET TEMPERATURE TASK OF POOL MANAGER
-// =================================================================================================
-void PM_Task_GetTemperature      ( void *pvParameters ) {
 
-  while (!startTasks) ;
-  vTaskDelay(DT4);                                // Scheduling offset 
-
-  TickType_t period = PT4;  
-  TickType_t ticktime = xTaskGetTickCount();
-  static UBaseType_t hwm = 0;
-
-  PM_TemperatureSensors.requestTemperatures();
-  vTaskDelayUntil(&ticktime,period);
-
-  //const char *pcTaskName = "Task_GPIO";
-  //UBaseType_t uxPriority;
-  //uxPriority = uxTaskPriorityGet( NULL );
-  tm * time_tm;
-  char timestamp_str[20];
-  time_t now;
-
-  std::string deviceName;
-  float preciseTemperatureC = 0.0;
-  //int   temperatureC =0;
-
-  for( ;; ) {
-    time(&now);
-    time_tm = localtime(&now);
-	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    //LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
-
-    for (int i = 0 ; i < PM_TemperatureSensors.getDeviceCount(); i++) {
-      deviceName = PM_TemperatureSensors.getDeviceNameByIndex(i);
-
-      preciseTemperatureC = PM_TemperatureSensors.getPreciseTempCByName(deviceName);
-      //LOG_I(TAG, "Sensor: %19s : % 4.2f°C", deviceName.c_str(),preciseTemperatureC);
-      //temperatureC = PM_TemperatureSensors.getTempCByName(deviceName);
-      //LOG_D(TAG, "Sensor: %19s : %6d°C", deviceName.c_str(),temperatureC);
-
-      if (deviceName == insideThermometerName) {
-        pm_measures.InAirTemp = preciseTemperatureC;
-        saveParam("InAirTemp", pm_measures.InAirTemp);
-      }
-      else if (deviceName == outsideThermometerName){
-        pm_measures.OutAirTemp = preciseTemperatureC;
-        saveParam("OutAirTemp", pm_measures.OutAirTemp);
-      } 
-      else if (deviceName == waterThermometerName) {
-        pm_measures.WaterTemp = preciseTemperatureC;
-        saveParam("WaterTemp", pm_measures.WaterTemp);
-      }
-    }
-
-    PM_TemperatureSensors.requestTemperatures();
-  
-    stack_mon(hwm);
-    vTaskDelayUntil(&ticktime,period);
-  }
-
-}
 // =================================================================================================
 //                              DISPLAY BUTTON INTERRUPTION MANAGEMENT
 // =================================================================================================

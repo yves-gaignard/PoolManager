@@ -21,7 +21,7 @@ int PM_I2CScan_Scan(byte I2CDevices[]) {
   String Log_Msg;
 
   LOG_I(TAG, "Scanning for I2C Devices…");
-
+  Wire.begin();
   for (address = 1; address < 127; address++ )
   {
     Wire.beginTransmission(address);

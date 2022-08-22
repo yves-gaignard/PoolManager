@@ -5,6 +5,7 @@
 */
 
 #define TAG "PM_main"
+// #define NVS_RESET_DEBUG   // if necessary uncomment this line to reset all data stored in the NVS (Non Volatile Storage)
 
 // Standard library definitions
 #include <Arduino.h>
@@ -47,6 +48,9 @@ PM_Config Pool_Configuration;
 
 // To manage time
 RTC_DS3231 rtc;  // RTC device handle
+boolean    isRTCFound     = true;
+boolean    isRTCLostPower = true;
+
 time_t     now;  // Current time (global variable)
 
 // Array of I2C Devices
@@ -71,10 +75,12 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   false, // bool    Orp_RegulationOnOff;             
   false, // boolean FilterPumpState;                // State of the filtering pump (true, false)
   false, // boolean pHMinusPumpState;               // State of the pH- pump (true, false)
-  false, // boolean ChlorinePumpState;              // State of the pH- pump (true, false)
+  false, // boolean ChlorinePumpState;              // State of the Chlorine pump (true, false)
+  10,    // uint_8  DelayPIDs;                      // Delay of starting PID computation after the start of a filtration pump (in minutes)
   -20.0, // float   InAirTemp;                      // Inside air temperature in °C 
   -20.0, // float   WaterTemp;                      // Water temperature in °C of the swimming pool
   -20.0, // float   OutAirTemp;                     // Outside air temperature in °C
+  10.0,  // float   WaterTempLowThreshold;          // Water temperature low threshold to compute PIDs
   7.4,   // double  pHValue;                        // Current pH value
   1800000, //ulong   pHPIDWindowSize;
   0,     // ulong   pHPIDwindowStartTime;           // pH PID window start time   
@@ -84,6 +90,8 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   2700000.0, //double  pH_Kp;
   0.0,   // double  pH_Ki;
   0.0,   // double  pH_Kd;
+  3.49625783, // double  pHCalibCoeffs0;
+  -2.011338191, // double  pHCalibCoeffs1;
   250.0, // double  OrpValue;                       // Current redox measure unit: mV
   1800000, //ulong   OrpPIDWindowSize;
   0,     // ulong   OrpPIDwindowStartTime;          // Orp PID window start time   
@@ -93,6 +101,8 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   2700000.0, //double  Orp_Kp;
   0.0,   // double  Orp_Ki;
   0.0,   // double  Orp_Kd;
+  -876.430775, // double  OrpCalibCoeffs0;
+  2328.8985,   // double  OrpCalibCoeffs1;
   0,     // time_t  FilteredDuration;               // Filtration Duration since the begin of the day
   0,     // time_t  DayFiltrationDuration;          // Maximum Filtration duration for the whole day
   0,     // time_t  FiltrationStartTime;            // Next start time of the filtration
@@ -104,12 +114,15 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   0,     // int32_t ConsumedInstantaneousPower;     // Instantaneous Power in Watt consumed by the filtration pump
   0,     // int32_t DayConsumedPower;               // Power in Watt consumed by the filtration pump since the begin of the day
   0.0,   // float   Pressure;                       // Pressure in the filtering device (unit hPa)
+  1.8,   // float   PressureHighThreshold;          // Pressure to consider the filtration pump is started
+  0.7,   // float   PressureMedThreshold;           // Pressure to consider the filtration pump is stopped
+  1.0,   // double  PSICalibCoeffs0;
+  0.0,   // double  PSICalibCoeffs1;
   PM_pH_Tank_Volume,        // float   pHMinusTankVolume;              // Max volume of the pH- tank
   PM_Chlorine_Tank_Volume,  // float   ChlorineTankVolume;             // Max volume of the Chlorine tank
   100.0, // float   pHMinusTankFill;                // % Fill of volume of the pH- tank
   100.0  // float   ChlorineTankFill;               // % Fill of volume of the Chlorine tank
 }; 
-PM_SwimmingPoolMeasures_str pm_measures_str = {             "0", "00", "00", "00", "7.4", "0", "0", "000", "00h00", "00h00","00.0", "00.0","00.0", "00.0", "0000", "0000", "0000", "OFF", "OFF", "OFF", "00.0", "00.0" }; 
 
 // Instanciations of Pump and PID objects to make them global. But the constructors are then called 
 // before loading of the storage struct. At run time, the attributes take the default
@@ -117,8 +130,8 @@ PM_SwimmingPoolMeasures_str pm_measures_str = {             "0", "00", "00", "00
 // be read from NVS later. This means that the correct objects attributes must be set later in
 // the setup function (fortunatelly, init methods exist).
 
-// The four pumps of the system (instanciate the Pump class)
-// In this case, all pumps start/Stop are managed by relays. pH, ORP and Robot pumps are interlocked with 
+// The three pumps of the system (instanciate the Pump class)
+// In this case, all pumps start/Stop are managed by relays. pH and ORP pumps are interlocked with 
 // filtration pump
 PM_Pump FiltrationPump(FILTRATION_PUMP, FILTRATION_PUMP);
 PM_Pump PhPump(PH_PUMP, PH_PUMP, NO_LEVEL, FILTRATION_PUMP, pm_measures.pHMinusFlowRate,  pm_measures.pHMinusTankVolume, pm_measures.pHMinusTankFill);
@@ -134,7 +147,6 @@ boolean IsWifiConnected   = false;
 
 // To manage wifi between multiple networks
 WiFiMulti wifiMulti;
-
 
 // Mutex to share access to I2C bus among two tasks: AnalogPoll and StatusLights
 static SemaphoreHandle_t I2CMutex;
@@ -170,8 +182,6 @@ void PM_Temperature_Init();
 void PM_SetpHPID(bool Enable);
 void PM_SetOrpPID(bool Enable);
 void PM_CalculateNextFiltrationPeriods();
-void PM_StartFiltrationPump();
-void PM_StopFiltrationPump();
 bool saveParam(const char* key, uint8_t val);
 bool saveParam(const char* key, bool val);
 bool saveParam(const char* key, unsigned long val);
@@ -196,19 +206,21 @@ void setup() {
   Serial.begin(115200);
 
   // Set appropriate log level. The defaul LOG_LEVEL is defined in PoolMaster.h
-  Log.setTag("*"             , LOG_LEVEL);
-  Log.setTag("PM_main"       , LOG_VERBOSE);
-  Log.setTag("PM_I2CScan"    , LOG_LEVEL);
-  Log.setTag("PM_Log"        , LOG_LEVEL);
-  Log.setTag("PM_OTA_Web_Srv", LOG_LEVEL);
-  Log.setTag("PM_Config"     , LOG_LEVEL);
-  Log.setTag("PM_Temperature", LOG_LEVEL);
-  Log.setTag("PM_Time_Mngt"  , LOG_LEVEL);
-  Log.setTag("PM_Wifi"       , LOG_LEVEL);
-  Log.setTag("PM_Tasks"      , LOG_VERBOSE);
-  Log.setTag("PM_Screen"     , LOG_VERBOSE);
-  
-
+  Log.setTag("*"                   , LOG_LEVEL);
+  Log.setTag("PM_main"             , LOG_VERBOSE);
+  Log.setTag("PM_I2CScan"          , LOG_LEVEL);
+  Log.setTag("PM_Log"              , LOG_LEVEL);
+  Log.setTag("PM_OTA_Web_Srv"      , LOG_LEVEL);
+  Log.setTag("PM_Config"           , LOG_LEVEL);
+  Log.setTag("PM_Temperature"      , LOG_LEVEL);
+  Log.setTag("PM_Time_Mngt"        , LOG_LEVEL);
+  Log.setTag("PM_Wifi"             , LOG_LEVEL);
+  Log.setTag("PM_Tasks"            , LOG_LEVEL);
+  Log.setTag("PM_Task_Pool_Manager", LOG_VERBOSE);
+  Log.setTag("PM_Tasks_Sensors"    , LOG_VERBOSE);
+  Log.setTag("PM_Tasks_Regulation" , LOG_VERBOSE);
+  Log.setTag("PM_Screen"           , LOG_LEVEL);
+    
   // Log.formatTimestampOff(); // time in milliseconds (if necessary)
   LOG_I(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
 
@@ -242,11 +254,12 @@ void setup() {
 	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
   LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
  
-  // For DEBUG , remove all keys
-  // nvs.begin(Project.Name.c_str(),false);
-  // if ( ! nvs.clear() ) LOG_E(TAG, "Cannot clear the NVS namespace: %s", Project.Name.c_str());
-  // nvs.end();
- 
+#ifdef NVS_RESET_DEBUG
+  nvs.begin(Project.Name.c_str(),false);
+  if ( ! nvs.clear() ) LOG_E(TAG, "Cannot clear the NVS namespace: %s", Project.Name.c_str());
+  nvs.end();
+#endif
+
   // Initialize NVS data 
   if ( ! PM_NVS_Init()) LOG_I(TAG, "Error on NVS initialization phase. See traces");
 
@@ -324,11 +337,11 @@ void setup() {
   // Start filtration pump at power-on if within scheduled time slots -- You can choose not to do this and start pump manually
   PM_CalculateNextFiltrationPeriods();
   if (pm_measures.AutoMode && (now >= pm_measures.FiltrationStartTime) && (now < pm_measures.FiltrationEndTime)) {
-    PM_StartFiltrationPump();
+    FiltrationPump.Start();
     LOG_I(TAG, "Start filtration pump");
   }
   else {
-    PM_StopFiltrationPump();
+    FiltrationPump.Stop();
     LOG_I(TAG, "Stop filtration pump");
   } 
 
@@ -350,12 +363,12 @@ void setup() {
   //                          Function                    Name               Stack  Param PRIO  Handle                core
   //xTaskCreatePinnedToCore(PM_Task_AnalogPoll,      "PM_Task_AnalogPoll",      3072, NULL, 1, nullptr,            app_cpu);  // Analog measurement polling task
   //  xTaskCreatePinnedToCore(PM_Task_ProcessCommand,  "PM_Task_ProcessCommand",  3072, NULL, 1, nullptr,            app_cpu); // MQTT commands processing
-  xTaskCreatePinnedToCore(PM_Task_PoolManager,     "PM_Task_PoolManager",     3072, NULL, 1, nullptr,            app_cpu); // Pool Manager: Supervisory task
+  //xTaskCreatePinnedToCore(PM_Task_Pool_Manager,    "PM_Task_Pool_Manager",    3072, NULL, 1, nullptr,            app_cpu); // Pool Manager: Supervisory task
   xTaskCreatePinnedToCore(PM_Task_GetTemperature,  "PM_Task_GetTemperature",  3072, NULL, 1, nullptr,            app_cpu); // Temperatures measurement
   //xTaskCreatePinnedToCore(PM_Task_OrpRegulation,   "PM_Task_OrpRegulation",   2048, NULL, 1, nullptr,            app_cpu); // ORP regulation loop
   //xTaskCreatePinnedToCore(PM_Task_pHRegulation,    "PM_Task_pHRegulation",    2048, NULL, 1, nullptr,            app_cpu); // pH regulation loop
   xTaskCreatePinnedToCore(PM_Task_LCD,             "Task_LCD",                3072, NULL, 1, nullptr,            app_cpu);
-  //xTaskCreatePinnedToCore(PM_Task_WebServer, "Task_WebServer", 10000, NULL,  9, nullptr, 1);
+  xTaskCreatePinnedToCore(PM_Task_WebServer,       "Task_WebServer",          3072, NULL, 1, nullptr,            app_cpu);
   //  xTaskCreatePinnedToCore(PM_Task_MeasuresPublish, "PM_Task_MeasuresPublish", 3072, NULL, 1, &pubMeasTaskHandle, app_cpu); // Measures MQTT publish 
   //  xTaskCreatePinnedToCore(PM_Task_SettingsPublish, "PM_Task_SettingsPublish", 3072, NULL, 1, &pubSetTaskHandle,  app_cpu);  // MQTT Settings publish 
 
@@ -533,21 +546,26 @@ void PM_Time_Init() {
 
   // Initialize the time
   // ------------------------
-  boolean isRTCFound     = true;
-  boolean isRTCLostPower = true;
+  isRTCFound     = true;
+  isRTCLostPower = true;
 
   // check if a RTC module is connected
   if (! rtc.begin()) {
     LOG_E(TAG, "Cannot find any RTC device. Time will be initialized through a NTP server");
     isRTCFound = false;
   } else {
-    isRTCLostPower=rtc.lostPower();   
+    isRTCLostPower=rtc.lostPower();
   }
 
   // Initialize time from NTP server
    PM_Time_Mngt_initialize_time();
   
-  
+  char timestamp_str[20];
+  tm* time_tm = localtime(&now);
+	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
+  LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
+
+  /*
   // If there is no RTC module or if it lost its power, set the time with the NTP time
   if (isRTCLostPower == true || isRTCFound == true) {
     LOG_I(TAG, "Initialize RTC time with NTP server");
@@ -585,6 +603,7 @@ void PM_Time_Init() {
     if ( ret != 0 ) {LOG_E(TAG, "Cannot set time from RTC" ); };
     
   }
+  */
   
 }
 // =================================================================================================
@@ -645,6 +664,7 @@ bool PM_NVS_Load() {
   pm_measures.InAirTemp                  = nvs.getFloat ("InAirTemp"      ,0.0);
   pm_measures.WaterTemp                  = nvs.getFloat ("WaterTemp"      ,0.0);
   pm_measures.OutAirTemp                 = nvs.getFloat ("OutAirTemp"     ,0.0);
+  pm_measures.WaterTempLowThreshold      = nvs.getFloat ("WaterTempLowT"  ,0.0);
   pm_measures.pH_RegulationOnOff         = nvs.getBool  ("pHRegulationOn" ,false);
   pm_measures.pHValue                    = nvs.getDouble("pHValue"        ,0.0);
   pm_measures.pHPIDWindowSize            = nvs.getULong ("pHPIDWindowSize",0);
@@ -655,6 +675,8 @@ bool PM_NVS_Load() {
   pm_measures.pH_Kp                      = nvs.getDouble("pH_Kp"          ,0.0);
   pm_measures.pH_Ki                      = nvs.getDouble("pH_Ki"          ,0.0);
   pm_measures.pH_Kd                      = nvs.getDouble("pH_Kd"          ,0.0);
+  pm_measures.pHCalibCoeffs0             = nvs.getDouble("pHCalibCoeffs0" ,0.0);
+  pm_measures.pHCalibCoeffs1             = nvs.getDouble("pHCalibCoeffs1" ,0.0);
   pm_measures.Orp_RegulationOnOff        = nvs.getBool  ("OrpRegulationOn",false);
   pm_measures.OrpValue                   = nvs.getDouble("OrpValue"       ,0);
   pm_measures.OrpPIDWindowSize           = nvs.getULong ("OrpPIDWindowSiz",0);
@@ -665,6 +687,9 @@ bool PM_NVS_Load() {
   pm_measures.Orp_Kp                     = nvs.getDouble("Orp_Kp"         ,0.0);
   pm_measures.Orp_Ki                     = nvs.getDouble("Orp_Ki"         ,0.0);
   pm_measures.Orp_Kd                     = nvs.getDouble("Orp_Kd"         ,0.0);
+  pm_measures.OrpCalibCoeffs0            = nvs.getDouble("OrpCalibCoeffs0",0.0);
+  pm_measures.OrpCalibCoeffs1            = nvs.getDouble("OrpCalibCoeffs1",0.0);
+  pm_measures.DelayPIDs                  = nvs.getUChar ("DelayPIDs"      ,0);
   pm_measures.FilteredDuration           = nvs.getULong ("FiltDuration"   ,0);
   pm_measures.DayFiltrationDuration      = nvs.getULong ("DayFiltDuration",0);
   pm_measures.FiltrationStartTime        = nvs.getULong ("FiltraStartTime",0);
@@ -676,6 +701,10 @@ bool PM_NVS_Load() {
   pm_measures.ConsumedInstantaneousPower = nvs.getUInt  ("InstantConsPwr" ,0);
   pm_measures.DayConsumedPower           = nvs.getUInt  ("DayConsumedPwr" ,0);
   pm_measures.Pressure                   = nvs.getFloat ("Pressure"       ,0.0);
+  pm_measures.PressureHighThreshold      = nvs.getFloat ("PHighThreshold" ,0.0);
+  pm_measures.PressureMedThreshold       = nvs.getFloat ("PMedThreshold"  ,0.0);
+  pm_measures.PSICalibCoeffs0            = nvs.getFloat ("PSICalibCoeffs0",0.0);
+  pm_measures.PSICalibCoeffs1            = nvs.getFloat ("PSICalibCoeffs1",0.0);
   pm_measures.FilterPumpState            = nvs.getBool  ("FilterPumpOn"   ,false);
   pm_measures.pHMinusPumpState           = nvs.getBool  ("pHMinusPumpOn"  ,false);
   pm_measures.ChlorinePumpState          = nvs.getBool  ("ChlorinePumpOn" ,false);
@@ -688,20 +717,21 @@ bool PM_NVS_Load() {
 
   LOG_D(TAG, "%d", pm_measures.PMVersion);
   LOG_D(TAG, "%d", pm_measures.Timestamp);
-  LOG_D(TAG, "%d, %d, %d, %d", pm_measures.AutoMode, pm_measures.WinterMode, pm_measures.pH_RegulationOnOff, pm_measures.Orp_RegulationOnOff);
-  LOG_D(TAG, "%2.2f, %2.2f, %2.2f", pm_measures.InAirTemp, pm_measures.WaterTemp,pm_measures.OutAirTemp);
+  LOG_D(TAG, "%d, %d, %d, %d, %d", pm_measures.AutoMode, pm_measures.WinterMode, pm_measures.pH_RegulationOnOff, pm_measures.Orp_RegulationOnOff, pm_measures.DelayPIDs);
+  LOG_D(TAG, "%2.2f, %2.2f, %2.2f,%2.2f", pm_measures.InAirTemp, pm_measures.WaterTemp,pm_measures.OutAirTemp, pm_measures.WaterTempLowThreshold);
   LOG_D(TAG, "%2.2f, %4.0f", pm_measures.pHValue, pm_measures.OrpValue);
   LOG_D(TAG, "%d, %d", pm_measures.pHPIDWindowSize, pm_measures.OrpPIDWindowSize);
   LOG_D(TAG, "%d, %d", pm_measures.pHPIDwindowStartTime, pm_measures.OrpPIDwindowStartTime);
   LOG_D(TAG, "%d, %d", pm_measures.pHPumpUpTimeLimit, pm_measures.OrpPumpUpTimeLimit);
   LOG_D(TAG, "%4.0f, %4.0f, %8.0f, %3.0f, %3.0f", pm_measures.pHPIDOutput, pm_measures.pH_SetPoint, pm_measures.pH_Kp, pm_measures.pH_Ki, pm_measures.pH_Kd);
   LOG_D(TAG, "%4.0f, %4.0f, %8.0f, %3.0f, %3.0f", pm_measures.OrpPIDOutput, pm_measures.Orp_SetPoint, pm_measures.Orp_Kp, pm_measures.Orp_Ki, pm_measures.Orp_Kd);
+  LOG_D(TAG, "%f, %f, %f, %f, %f, %f", pm_measures.pHCalibCoeffs0, pm_measures.pHCalibCoeffs1, pm_measures.OrpCalibCoeffs0, pm_measures.OrpCalibCoeffs1, pm_measures.PSICalibCoeffs0, pm_measures.PSICalibCoeffs1);
   LOG_D(TAG, "%d, %d", pm_measures.FilteredDuration, pm_measures.DayFiltrationDuration);
   LOG_D(TAG, "%d, %d", pm_measures.FiltrationStartTime, pm_measures.FiltrationEndTime);
   LOG_D(TAG, "%2.2f, %2.2f", pm_measures.pHMinusFlowRate, pm_measures.ChlorineFlowRate);
   LOG_D(TAG, "%2.2f, %2.2f", pm_measures.pHMinusVolume, pm_measures.ChlorineVolume);
   LOG_D(TAG, "%d, %d", pm_measures.ConsumedInstantaneousPower, pm_measures.DayConsumedPower);
-  LOG_D(TAG, "%2.2f", pm_measures.Pressure);
+  LOG_D(TAG, "%2.2f, %2.2f, %2.2f", pm_measures.Pressure, pm_measures.PressureHighThreshold, pm_measures.PressureMedThreshold);
   LOG_D(TAG, "%d, %d, %d", pm_measures.FilterPumpState, pm_measures.pHMinusPumpState, pm_measures.ChlorinePumpState);
   LOG_D(TAG, "%2.2f, %2.2f", pm_measures.pHMinusTankVolume, pm_measures.ChlorineTankVolume);
   LOG_D(TAG, "%2.2f, %2.2f", pm_measures.pHMinusTankFill, pm_measures.ChlorineTankFill);
@@ -726,6 +756,7 @@ bool PM_NVS_Save() {
   i += nvs.putFloat ("InAirTemp",       pm_measures.InAirTemp);
   i += nvs.putFloat ("WaterTemp",       pm_measures.WaterTemp);
   i += nvs.putFloat ("OutAirTemp",      pm_measures.OutAirTemp);
+  i += nvs.putFloat ("WaterTempLowT",   pm_measures.WaterTempLowThreshold);
   i += nvs.putBool  ("pHRegulationOn",  pm_measures.pH_RegulationOnOff);
   i += nvs.putDouble("pHValue",         pm_measures.pHValue);
   i += nvs.putULong ("pHPIDWindowSize", pm_measures.pHPIDWindowSize);
@@ -736,6 +767,8 @@ bool PM_NVS_Save() {
   i += nvs.putDouble("pH_Kp",           pm_measures.pH_Kp);
   i += nvs.putDouble("pH_Ki",           pm_measures.pH_Ki);
   i += nvs.putDouble("pH_Kd",           pm_measures.pH_Kd);
+  i += nvs.putDouble("pHCalibCoeffs0",  pm_measures.pHCalibCoeffs0);
+  i += nvs.putDouble("pHCalibCoeffs1",  pm_measures.pHCalibCoeffs1);
   i += nvs.putBool  ("OrpRegulationOn", pm_measures.Orp_RegulationOnOff);
   i += nvs.putDouble("OrpValue",        pm_measures.OrpValue);
   i += nvs.putULong ("OrpPIDWindowSiz", pm_measures.OrpPIDWindowSize);
@@ -746,6 +779,9 @@ bool PM_NVS_Save() {
   i += nvs.putDouble("Orp_Kp",          pm_measures.Orp_Kp);
   i += nvs.putDouble("Orp_Ki",          pm_measures.Orp_Ki);
   i += nvs.putDouble("Orp_Kd",          pm_measures.Orp_Kd);
+  i += nvs.putDouble("OrpCalibCoeffs0", pm_measures.OrpCalibCoeffs0);
+  i += nvs.putDouble("OrpCalibCoeffs1", pm_measures.OrpCalibCoeffs1);
+  i += nvs.putUChar ("DelayPIDs",       pm_measures.DelayPIDs);
   i += nvs.putULong ("FiltDuration",    pm_measures.FilteredDuration);
   i += nvs.putULong ("DayFiltDuration", pm_measures.DayFiltrationDuration);
   i += nvs.putULong ("FiltraStartTime", pm_measures.FiltrationStartTime);
@@ -757,6 +793,10 @@ bool PM_NVS_Save() {
   i += nvs.putUInt  ("InstantConsPwr",  pm_measures.ConsumedInstantaneousPower);
   i += nvs.putUInt  ("DayConsumedPwr",  pm_measures.DayConsumedPower);
   i += nvs.putFloat ("Pressure",        pm_measures.Pressure);
+  i += nvs.putFloat ("PHighThreshold",  pm_measures.PressureHighThreshold);
+  i += nvs.putFloat ("PMedThreshold",   pm_measures.PressureMedThreshold);
+  i += nvs.putFloat ("PSICalibCoeffs0", pm_measures.PSICalibCoeffs0);
+  i += nvs.putFloat ("PSICalibCoeffs1", pm_measures.PSICalibCoeffs1);
   i += nvs.putBool  ("FilterPumpOn",    pm_measures.FilterPumpState);
   i += nvs.putBool  ("pHMinusPumpOn",   pm_measures.pHMinusPumpState);
   i += nvs.putBool  ("ChlorinePumpOn",  pm_measures.ChlorinePumpState);
@@ -928,6 +968,7 @@ void PM_CalculateNextFiltrationPeriods() {
   if (pm_measures.DayFiltrationDuration == 0 ) {
     // calculate the filtration duration in seconds depending on the water temperature
     pm_measures.DayFiltrationDuration = Pool_Configuration.GetFiltrationDuration(pm_measures.WaterTemp);
+    saveParam("DayFiltDuration", (unsigned long)pm_measures.DayFiltrationDuration);
   }
   LOG_D(TAG, "Water temperature: %6.2f", pm_measures.WaterTemp);
   tm tm_duration = PM_Time_Mngt_convertSecondsToTm(pm_measures.DayFiltrationDuration);
@@ -935,6 +976,8 @@ void PM_CalculateNextFiltrationPeriods() {
   
   if (pm_measures.FilteredDuration <= pm_measures.DayFiltrationDuration) {
     Pool_Configuration.NextFiltrationPeriod (pm_measures.FiltrationStartTime, pm_measures.FiltrationEndTime, pm_measures.FilteredDuration, pm_measures.DayFiltrationDuration);
+    saveParam("FiltraStartTime", (unsigned long)pm_measures.FiltrationStartTime);
+    saveParam("FiltraEndTime", (unsigned long)pm_measures.FiltrationEndTime);
   }
 
   LOG_D(TAG, "Next Filtration period is:");
@@ -946,15 +989,4 @@ void PM_CalculateNextFiltrationPeriods() {
   
   LOG_D(TAG, "- next start time: %04d/%02d/%02d %02d:%02d:%02d (%u)", tm_NextStartTime.tm_year+1900, tm_NextStartTime.tm_mon+1, tm_NextStartTime.tm_mday, tm_NextStartTime.tm_hour, tm_NextStartTime.tm_min, tm_NextStartTime.tm_sec, pm_measures.FiltrationStartTime);
   LOG_D(TAG, "- next end time  : %04d/%02d/%02d %02d:%02d:%02d (%u)", tm_NextEndTime.tm_year+1900, tm_NextEndTime.tm_mon+1, tm_NextEndTime.tm_mday, tm_NextEndTime.tm_hour, tm_NextEndTime.tm_min, tm_NextEndTime.tm_sec, pm_measures.FiltrationEndTime);
-}
-
-// =================================================================================================
-//                         START AND STOP FILTRATION PUMP
-// =================================================================================================
-void PM_StartFiltrationPump() {
-    FiltrationPump.Start();
-}
-void PM_StopFiltrationPump() {
-    FiltrationPump.Stop();
-
 }

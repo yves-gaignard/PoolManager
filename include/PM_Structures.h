@@ -49,10 +49,12 @@ struct PM_SwimmingPoolMeasures {
   bool    Orp_RegulationOnOff;             
   bool    FilterPumpState;                // State of the filtering pump (true, false)
   bool    pHMinusPumpState;               // State of the pH- pump (true, false)
-  bool    ChlorinePumpState;              // State of the pH- pump (true, false)
+  bool    ChlorinePumpState;              // State of the Chlorine pump (true, false)
+  uint8_t DelayPIDs;                      // Delay of starting PID computation after the start of a filtration pump (in minutes)
   float   InAirTemp;                      // Inside air temperature in °C
   float   WaterTemp;                      // Water temperature in °C of the swimming pool
   float   OutAirTemp;                     // Outside air temperature in °C
+  float   WaterTempLowThreshold;          // Water temperature low threshold to compute PIDs
   double  pHValue;                        // Current pH value
   ulong   pHPIDWindowSize;
   ulong   pHPIDwindowStartTime;           // pH PID window start time
@@ -62,6 +64,8 @@ struct PM_SwimmingPoolMeasures {
   double  pH_Kp;
   double  pH_Ki;
   double  pH_Kd;
+  double  pHCalibCoeffs0;
+  double  pHCalibCoeffs1;
   double  OrpValue;                       // Current redox measure unit: mV
   ulong   OrpPIDWindowSize;
   ulong   OrpPIDwindowStartTime;          // Orp PID window start time   
@@ -71,6 +75,8 @@ struct PM_SwimmingPoolMeasures {
   double  Orp_Kp;
   double  Orp_Ki;
   double  Orp_Kd;
+  double  OrpCalibCoeffs0;
+  double  OrpCalibCoeffs1;
   time_t  FilteredDuration;               // Filtration Duration since the begin of the day
   time_t  DayFiltrationDuration;          // Maximum Filtration duration for the whole day
   time_t  FiltrationStartTime;            // Next start time of the filtration
@@ -82,11 +88,16 @@ struct PM_SwimmingPoolMeasures {
   int32_t ConsumedInstantaneousPower;     // Instantaneous Power in Watt consumed by the filtration pump
   int32_t DayConsumedPower;               // Power in Watt consumed by the filtration pump since the begin of the day
   float   Pressure;                       // Pressure in the filtering device (unit hPa)
+  float   PressureHighThreshold;          // Pressure to consider the filtration pump is started
+  float   PressureMedThreshold;           // Pressure to consider the filtration pump is stopped
+  double  PSICalibCoeffs0;
+  double  PSICalibCoeffs1;
   float   pHMinusTankVolume;              // Max volume of the pH- tank
   float   ChlorineTankVolume;             // Max volume of the Chlorine tank
   float   pHMinusTankFill;                // % Fill of volume of the pH- tank
   float   ChlorineTankFill;               // % Fill of volume of the Chlorine tank
 };
+
 
 struct PM_SwimmingPoolMeasures_str {
   std::string  Timestamp_str;                  // Last modification timestamp

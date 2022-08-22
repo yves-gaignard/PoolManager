@@ -7,8 +7,8 @@
 #define PM_Parameters_h
 
 #include <Arduino.h>
-#include <PM_Structures.h>
-#include <PM_Secrets.h>
+#include "PM_Structures.h"
+#include "PM_Secrets.h"
 
 // Project name, version and author
 // ---------------------------------
@@ -30,6 +30,11 @@ const uint8_t PM_DS3231_Device_Addr     = 0x57;  // The DS3231 device itself
 const uint8_t PM_AT24C32_Device_Address = 0x68;  // (4k EEPROM) contained by the DS3231 device.
 
 
+// Setup an ADS1115 instance for analog measurements
+// ---------------------------------------------------
+// const uint8_t PM_ADS1115_Device_Addr    = 0x48;  // Address 0x48 is the default
+#define PM_ADS1115_Device_Addr    0x48   // Address 0x48 is the default
+
 // list of your Wifi networks with their credentials
 // --------------------------------------------------
 // You can put credentials in a file: PM_Secrets.h 
@@ -43,7 +48,6 @@ const PM_WifiNetwork WifiLaConche { WIFI_LA_CONCHE_SSID, WIFI_LA_CONCHE_PASSWORD
 const PM_WifiConfig  WifiConf     {IPAddress(192,168,1,99), IPAddress(192,168,1,1), IPAddress(255,255,0,0), IPAddress(1,1,1,1), IPAddress(8,8,8,8)};
 // Listening port
 const int  PM_WebServerPort = 80; 
-
 
 // Configuration of the temperature sensors:
 // ------------------------------------------
@@ -75,7 +79,7 @@ const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 
 //---------------------------------
 // T1 : PM_Task_AnalogPoll
 // T2 : PM_Task_ProcessCommand
-// T3 : PM_Task_PoolManager
+// T3 : PM_Task_Pool_Manager
 // T4 : PM_Task_GetTemperature
 // T5 : PM_Task_OrpRegulation
 // T6 : PM_Task_pHRegulation
