@@ -64,16 +64,30 @@ const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 
 // Configuration of the GPIOs
 // ---------------------------
 // Button to activate the LCD display
-#define PM_DisplayButton_Pin  18
+#define PM_DisplayButton_Pin  13
 
-// One wire (temperature sensors) is plugged into GPIO 4
-#define ONE_WIRE_BUS           4 
-#define TEMPERATURE_PRECISION 10
+// One wire (temperature sensors) is plugged into GPIO 0
+#define ONE_WIRE_BUS           0 
 
-// Pump management GPIO
-#define FILTRATION_PUMP       32
-#define PH_PUMP               14
-#define CHL_PUMP              12
+// Pump management 
+#define FILTRATION_PUMP_Pin   26
+#define PH_PUMP_Pin           14
+#define CHL_PUMP_Pin          25
+
+// Tank reset button
+#define CHL_TANK_RESET_Pin     5
+#define PH_TANK_RESET_Pin     17
+
+// Light Buzzer
+#define LIGHT_BUZZER_Pin      16
+
+// Winter mode button
+#define WINTER_MODE_Pin       33
+
+// Sensors
+#define PH_SENSOR_Pin         34
+#define ORP_SENSOR_Pin        35
+#define PRESSURE_SENSOR_Pin   36
 
 // Loop tasks scheduling parameters
 //---------------------------------
@@ -130,9 +144,13 @@ const char PM_TimeZone[60] = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; // 
 // LCD display parameters
 // ----------------------
 // duration of display inactivity before light off (in seconds)
-#define LCD_DISPLAY_TIMEOUT 60
+#define LCD_DISPLAY_TIMEOUT 30
 
 // duration of a screen display before switching to the next time (in seconds)
-#define LCD_DISPLAY_SCREEN_DURATION 5 
+#define LCD_DISPLAY_SCREEN_DURATION 5
+
+// Precision of 
+//-----------------
+#define TEMPERATURE_PRECISION 10
 
 #endif

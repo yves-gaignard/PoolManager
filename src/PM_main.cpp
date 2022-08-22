@@ -133,9 +133,9 @@ PM_SwimmingPoolMeasures     pm_measures     = {
 // The three pumps of the system (instanciate the Pump class)
 // In this case, all pumps start/Stop are managed by relays. pH and ORP pumps are interlocked with 
 // filtration pump
-PM_Pump FiltrationPump(FILTRATION_PUMP, FILTRATION_PUMP);
-PM_Pump PhPump(PH_PUMP, PH_PUMP, NO_LEVEL, FILTRATION_PUMP, pm_measures.pHMinusFlowRate,  pm_measures.pHMinusTankVolume, pm_measures.pHMinusTankFill);
-PM_Pump ChlPump(CHL_PUMP, CHL_PUMP, NO_LEVEL, FILTRATION_PUMP, pm_measures.ChlorineFlowRate, pm_measures.ChlorineTankVolume, pm_measures.ChlorineTankFill);
+PM_Pump FiltrationPump(FILTRATION_PUMP_Pin, FILTRATION_PUMP_Pin);
+PM_Pump PhPump(PH_PUMP_Pin, PH_PUMP_Pin, NO_LEVEL, FILTRATION_PUMP_Pin, pm_measures.pHMinusFlowRate,  pm_measures.pHMinusTankVolume, pm_measures.pHMinusTankFill);
+PM_Pump ChlPump(CHL_PUMP_Pin, CHL_PUMP_Pin, NO_LEVEL, FILTRATION_PUMP_Pin, pm_measures.ChlorineFlowRate, pm_measures.ChlorineTankVolume, pm_measures.ChlorineTankFill);
 
 //PIDs instances
 //Specify the links and initial tuning parameters
