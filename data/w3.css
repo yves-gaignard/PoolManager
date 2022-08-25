@@ -1,0 +1,15 @@
+﻿/* W3.CSS 4.15 December 2020 by Jan Egil and Borge Refsnes */
+html{box-sizing:border-box}*,*:before,*:after{box-sizing:inherit}
+/* Extract from normalize.css by Nicolas Gallagher and Jonathan Neal git.io/normalize */
+html{-ms-text-size-adjust:100%;-webkit-text-size-adjust:100%}body{margin:0}
+::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}
+/* End extract */
+html,body{font-family:Verdana,sans-serif;font-size:15px;line-height:1.5}html{overflow-x:hidden}
+h1{font-size:36px}h3{font-size:24px}
+h1,h3{font-family:"Segoe UI",Arial,sans-serif;font-weight:400;margin:10px 0}:disabled *{pointer-events:none}
+.w3-card{box-shadow:0 2px 5px 0 rgba(0,0,0,0.16),0 2px 10px 0 rgba(0,0,0,0.12)}
+.w3-animate-opacity{animation:opac 0.8s}@keyframes opac{from{opacity:0} to{opacity:1}}.w3-xxlarge{font-size:36px!important}.w3-center{text-align:center!important}
+.w3-margin{margin:16px!important}
+.w3-padding-small{padding:4px 8px!important}.w3-padding{padding:8px 16px!important}.w3-padding-24{padding-top:24px!important;padding-bottom:24px!important}
+/* Colors */
+.w3-blue{color:#fff!important;background-color:#2196F3!important}

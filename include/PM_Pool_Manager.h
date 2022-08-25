@@ -24,7 +24,6 @@ extern PM_LCD lcd;
 extern PM_Screens screens;
 
 extern PM_SwimmingPoolMeasures     pm_measures;
-extern PM_SwimmingPoolMeasures_str pm_measures_str;
 
 //PIDs instances
 extern PID pHPID;
