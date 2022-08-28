@@ -5,7 +5,7 @@
 */
 
 #define TAG "PM_main"
-// #define NVS_RESET_DEBUG   // if necessary uncomment this line to reset all data stored in the NVS (Non Volatile Storage)
+//#define NVS_RESET_DEBUG   // if necessary uncomment this line to reset all data stored in the NVS (Non Volatile Storage)
 
 // Standard library definitions
 #include <Arduino.h>
@@ -51,7 +51,10 @@ RTC_DS3231 rtc;  // RTC device handle
 boolean    isRTCFound     = true;
 boolean    isRTCLostPower = true;
 
-time_t     now;  // Current time (global variable)
+time_t      now;  // Current time (global variable)
+suseconds_t usec;
+char timestamp_str[20];
+tm* time_tm;
 
 // Array of I2C Devices
 static byte I2CDevices[128];
@@ -113,7 +116,7 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   0.0,   // float   ChlorineVolume;                 // Volume of liquid chlorine since the last complete fill of the container
   0,     // int32_t ConsumedInstantaneousPower;     // Instantaneous Power in Watt consumed by the filtration pump
   0,     // int32_t DayConsumedPower;               // Power in Watt consumed by the filtration pump since the begin of the day
-  0.0,   // float   Pressure;                       // Pressure in the filtering device (unit hPa)
+  1.5,   // float   Pressure;                       // Pressure in the filtering device (unit hPa)
   1.8,   // float   PressureHighThreshold;          // Pressure to consider the filtration pump is started
   0.7,   // float   PressureMedThreshold;           // Pressure to consider the filtration pump is stopped
   1.0,   // double  PSICalibCoeffs0;
@@ -216,9 +219,9 @@ void setup() {
   Log.setTag("PM_Time_Mngt"        , LOG_LEVEL);
   Log.setTag("PM_Wifi"             , LOG_LEVEL);
   Log.setTag("PM_Tasks"            , LOG_LEVEL);
-  Log.setTag("PM_Task_Pool_Manager", LOG_VERBOSE);
-  Log.setTag("PM_Tasks_Sensors"    , LOG_VERBOSE);
-  Log.setTag("PM_Tasks_Regulation" , LOG_VERBOSE);
+  Log.setTag("PM_Task_Pool_Manager", LOG_DEBUG);
+  Log.setTag("PM_Tasks_Sensors"    , LOG_DEBUG);
+  Log.setTag("PM_Tasks_Regulation" , LOG_DEBUG);
   Log.setTag("PM_Screen"           , LOG_LEVEL);
     
   // Log.formatTimestampOff(); // time in milliseconds (if necessary)
@@ -249,9 +252,11 @@ void setup() {
   strcpy(LocalTimeFormat, PM_LocalTimeFormat);
   LOG_D(TAG, "Current date and local time is: %s", Now.toString(LocalTimeFormat));
   */
-  char timestamp_str[20];
-  tm* time_tm = localtime(&now);
-	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
+  //suseconds_t usec;
+  //char timestamp_str[20];
+  now = pftime::time(nullptr); // get current time
+  time_tm = pftime::localtime(&now, &usec);  // Change in localtime
+  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
   LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
  
 #ifdef NVS_RESET_DEBUG
@@ -336,6 +341,16 @@ void setup() {
 
   // Start filtration pump at power-on if within scheduled time slots -- You can choose not to do this and start pump manually
   PM_CalculateNextFiltrationPeriods();
+  now = pftime::time(nullptr); // get current time
+  time_tm = pftime::localtime(&now, &usec);  // Change in localtime
+  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
+  LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
+ 
+  LOG_D(TAG, "AutoMode  : %d",pm_measures.AutoMode);
+  LOG_D(TAG, "now       : %d",now);
+  LOG_D(TAG, "Start Time: %d",pm_measures.FiltrationStartTime);
+  LOG_D(TAG, "End   Time: %d",pm_measures.FiltrationEndTime);
+
   if (pm_measures.AutoMode && (now >= pm_measures.FiltrationStartTime) && (now < pm_measures.FiltrationEndTime)) {
     FiltrationPump.Start();
     LOG_I(TAG, "Start filtration pump");
@@ -363,7 +378,7 @@ void setup() {
   //                          Function                    Name               Stack  Param PRIO  Handle                core
   //xTaskCreatePinnedToCore(PM_Task_AnalogPoll,      "PM_Task_AnalogPoll",      3072, NULL, 1, nullptr,            app_cpu);  // Analog measurement polling task
   //  xTaskCreatePinnedToCore(PM_Task_ProcessCommand,  "PM_Task_ProcessCommand",  3072, NULL, 1, nullptr,            app_cpu); // MQTT commands processing
-  //xTaskCreatePinnedToCore(PM_Task_Pool_Manager,    "PM_Task_Pool_Manager",    3072, NULL, 1, nullptr,            app_cpu); // Pool Manager: Supervisory task
+  xTaskCreatePinnedToCore(PM_Task_Pool_Manager,    "PM_Task_Pool_Manager",    3072, NULL, 1, nullptr,            app_cpu); // Pool Manager: Supervisory task
   xTaskCreatePinnedToCore(PM_Task_GetTemperature,  "PM_Task_GetTemperature",  3072, NULL, 1, nullptr,            app_cpu); // Temperatures measurement
   //xTaskCreatePinnedToCore(PM_Task_OrpRegulation,   "PM_Task_OrpRegulation",   2048, NULL, 1, nullptr,            app_cpu); // ORP regulation loop
   //xTaskCreatePinnedToCore(PM_Task_pHRegulation,    "PM_Task_pHRegulation",    2048, NULL, 1, nullptr,            app_cpu); // pH regulation loop
@@ -560,51 +575,11 @@ void PM_Time_Init() {
   // Initialize time from NTP server
    PM_Time_Mngt_initialize_time();
   
+  suseconds_t usec;
   char timestamp_str[20];
-  tm* time_tm = localtime(&now);
+  tm* time_tm = pftime::localtime(nullptr, &usec);
 	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
   LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
-
-  /*
-  // If there is no RTC module or if it lost its power, set the time with the NTP time
-  if (isRTCLostPower == true || isRTCFound == true) {
-    LOG_I(TAG, "Initialize RTC time with NTP server");
-
-    // Get current time
-    time(&now);
-    // adjust time of rtc with the time get from NTP server
-    DateTime DT_now (now);
-    if (DT_now.isValid()) {
-      char DT_now_str[20]= "YYYY-MM-DD hh:mm:ss";
-      DT_now.toString(DT_now_str);
-      LOG_I(TAG, "Adjust the time of RTC with the NTP time: %s", DT_now_str);
-      rtc.adjust(DT_now);
-    }
-    else {
-      LOG_E(TAG, "Cannot set time to RTC as DT_now is not valid !!!!" );
-    }
-  }
-  
-  // if there is a RTC module, set the time with RTC time
-  if (isRTCFound == true) {
-    
-    // set time with the RTC time
-    DateTime DT_now (rtc.now());
-    char DT_now_str[20]= "YYYY-MM-DD hh:mm:ss";
-    DT_now.toString(DT_now_str);
-    LOG_I(TAG, "Get the time from RTC: %s", DT_now_str);
-    
-    // set the time
-    now = DT_now.unixtime();
-    LOG_I(TAG, "rtc.now = %u", now );
-    timeval tv = {now, 0}; 
-    timezone tz = {0,0} ;
-    int ret = settimeofday(&tv, &tz);
-    if ( ret != 0 ) {LOG_E(TAG, "Cannot set time from RTC" ); };
-    
-  }
-  */
-  
 }
 // =================================================================================================
 //                           MEASURES INITIALIZATION FROM STORAGE
@@ -743,7 +718,8 @@ bool PM_NVS_Load() {
 // =================================================================================================
 bool PM_NVS_Save() {
 
-  localtime(&now);
+  now = pftime::time(nullptr); // get current time
+  time_tm = pftime::localtime(&now, &usec);  // Change in localtime
   nvs.begin(Project.Name.c_str(),false);
 
   // Beware : the key maximum length is only 15 characters

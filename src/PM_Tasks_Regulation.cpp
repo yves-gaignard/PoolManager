@@ -11,6 +11,7 @@
 #include <Arduino.h>              // Arduino framework
 #include <esp_task_wdt.h>         // ESP task management library
 #include <RunningMedian.h>
+#include <ESPPerfectTime.h>
 
 #include "PM_Pool_Manager.h"
 
@@ -26,18 +27,19 @@ void PM_Task_pHRegulation(void *pvParameters)
   TickType_t ticktime = xTaskGetTickCount();
   static UBaseType_t hwm = 0;
 
-  #ifdef CHRONO
-  unsigned long td;
-  int t_act=0,t_min=999,t_max=0;
-  float t_mean=0.;
-  int n=1;
-  #endif
+  UBaseType_t uxPriority;
+  uxPriority = uxTaskPriorityGet( NULL );
+  tm * time_tm;
+  char timestamp_str[20];
+  time_t now;
+  suseconds_t usec;
 
   for(;;)
   {
-    #ifdef CHRONO
-    td = millis();
-    #endif 
+    now = pftime::time(nullptr); // get current time
+    time_tm = pftime::localtime(&now, &usec);  // Change in localtime
+    strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
+    LOG_V(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
     //do not compute PID if filtration pump is not running
     // Set also a lower limit at 30s (a lower pump duration does'nt mean anything)
@@ -96,18 +98,20 @@ void PM_Task_OrpRegulation(void *pvParameters)
   TickType_t ticktime = xTaskGetTickCount();
   static UBaseType_t hwm = 0;
 
-  #ifdef CHRONO
-  unsigned long td;
-  int t_act=0,t_min=999,t_max=0;
-  float t_mean=0.;
-  int n=1;
-  #endif
+  UBaseType_t uxPriority;
+  uxPriority = uxTaskPriorityGet( NULL );
+  tm * time_tm;
+  char timestamp_str[20];
+  time_t now;
+  suseconds_t usec;
 
   for(;;)
   { 
-    #ifdef CHRONO
-    td = millis();
-    #endif 
+    now = pftime::time(nullptr); // get current time
+    time_tm = pftime::localtime(&now, &usec);  // Change in localtime
+    strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
+    LOG_V(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
+
 
     //do not compute PID if filtration pump is not running
     // Set also a lower limit at 30s (a lower pump duration does'nt mean anything)

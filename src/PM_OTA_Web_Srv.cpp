@@ -84,12 +84,11 @@ void PM_OTA_Web_Srv_root(AsyncWebServerRequest *request) {
 void PM_OTA_Web_Srv_getMeasures(AsyncWebServerRequest *request) {
   const int capacity = JSON_OBJECT_SIZE(48);
   StaticJsonDocument<capacity> root;
-  LOG_I(TAG, "Start API Get measuressend");
+  LOG_V(TAG, "Start API Get measuressend");
   
   root["Vers"]   = pm_measures.PMVersion;                 //firmware revision
   root["FedDur"] = pm_measures.FilteredDuration;          // Filtration Duration since the begin of the day
   root["DFDur"]  = pm_measures.DayFiltrationDuration;     // Maximum Filtration duration for the whole day
-  root["FDu"]    = pm_measures.DayFiltrationDuration;     //Computed filtration duration based on water temperature (hours)
   root["FSta"]   = pm_measures.FiltrationStartTime;       // Next start time of the filtration
   root["FEnd"]   = pm_measures.FiltrationEndTime;         // Next end time of the filtration
   root["pHUTL"]  = pm_measures.pHPumpUpTimeLimit / 60;    // Time in seconds max per day for pH injection
@@ -149,6 +148,6 @@ void PM_OTA_Web_Srv_getMeasures(AsyncWebServerRequest *request) {
   String response;
   serializeJson(root, response);  
   request->send(200, "application/json", response.c_str());
-  LOG_I(TAG, "End API Get measuressend");
+  LOG_V(TAG, "End API Get measuressend");
 }
 

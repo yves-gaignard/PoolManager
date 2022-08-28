@@ -83,6 +83,8 @@ void PM_Task_Pool_Manager(void *pvParameters)
     
     if (tm_now->tm_hour == 0 && !DoneForTheDay)
     {
+      LOG_I(TAG, " !!!!! --- Midnight --- New day parameter computation --- !!!!!");
+      
       //First store current Chl and Acid consumptions of the day in Eeprom
       pm_measures.pHMinusTankFill = PhPump.GetTankFill();
       pm_measures.ChlorineTankFill = ChlPump.GetTankFill();
@@ -122,12 +124,15 @@ void PM_Task_Pool_Manager(void *pvParameters)
     }
     else if(tm_now->tm_hour == 1) {
       DoneForTheDay = false;
+      LOG_I(TAG, " !!!!! --- It is 01am --- End of new day computation --- !!!!!");
     }
 
     //start filtration pump as scheduled
     if (!EmergencyStopFiltPump && !FiltrationPump.IsRunning() && pm_measures.AutoMode &&
-        !PSIError && now >= pm_measures.FiltrationStartTime && now < pm_measures.FiltrationEndTime )
-        FiltrationPump.Start();
+        !PSIError && now >= pm_measures.FiltrationStartTime && now < pm_measures.FiltrationEndTime ) {
+            FiltrationPump.Start();
+            LOG_I(TAG, " !!!!! --- Start Filtration --- !!!!!");
+        }
     
     // start PIDs with delay after FiltrationStart in order to let the readings stabilize
     // start inhibited if water temperature below threshold and/or in winter mode
@@ -139,6 +144,7 @@ void PM_Task_Pool_Manager(void *pvParameters)
         //Start PIDs
         SetPhPID(true);
         SetOrpPID(true);
+        LOG_I(TAG, " !!!!! --- Start pH and Orp PID --- !!!!!");
     }
 
     //stop filtration pump and PIDs as scheduled unless we are in AntiFreeze mode
@@ -147,6 +153,7 @@ void PM_Task_Pool_Manager(void *pvParameters)
         SetPhPID(false);
         SetOrpPID(false);
         FiltrationPump.Stop();
+        LOG_I(TAG, " !!!!! --- Stop Filtration, pH and Orp PID --- !!!!!");
     }
 
     //Outside regular filtration hours, start filtration in case of cold Air temperatures (<-2.0deg)
@@ -154,31 +161,33 @@ void PM_Task_Pool_Manager(void *pvParameters)
     {
         FiltrationPump.Start();
         AntiFreezeFiltering = true;
+        LOG_I(TAG, " !!!!! --- Start filtration due to antifreeze --- !!!!!");
     }
 
     //Outside regular filtration hours and if in AntiFreezeFiltering mode but Air temperature rose back above 2.0deg, stop filtration
-    if (pm_measures.AutoMode && FiltrationPump.IsRunning() && ((now < pm_measures.FiltrationStartTime) || (now > pm_measures.FiltrationEndTime)) && AntiFreezeFiltering && (pm_measures.OutAirTemp > 2.0))
-    {
+    if (pm_measures.AutoMode && FiltrationPump.IsRunning() && ((now < pm_measures.FiltrationStartTime) || (now > pm_measures.FiltrationEndTime)) && AntiFreezeFiltering && (pm_measures.OutAirTemp > 2.0)) {
         FiltrationPump.Stop();
         AntiFreezeFiltering = false;
+        LOG_I(TAG, " !!!!! --- Stop filtration due to end of antifreeze --- !!!!!");
     }
 
     //If filtration pump has been running for over 45secs but pressure is still low, stop the filtration pump, something is wrong, set error flag
-    if (FiltrationPump.IsRunning() && ((millis() - FiltrationPump.LastStartTime) > 45000) && (pm_measures.Pressure < pm_measures.PressureMedThreshold))
-    {
+    if (FiltrationPump.IsRunning() && ((millis() - FiltrationPump.LastStartTime) > 45000) && (pm_measures.Pressure < pm_measures.PressureMedThreshold)) {
         FiltrationPump.Stop();
         PSIError = true;
+        LOG_I(TAG, " !!!!! --- Stop filtration as the pressure is still low --- !!!!!");
         //mqttErrorPublish("{\"Pressure Error\":1}");
     }  
 
     // Over-pressure error
-    if (pm_measures.Pressure > pm_measures.PressureHighThreshold)
-    {
+    if (pm_measures.Pressure > pm_measures.PressureHighThreshold) {
         FiltrationPump.Stop();
         PSIError = true;
+        LOG_I(TAG, " !!!!! --- Stop filtration as the pressure is TOO HIGH --- !!!!!");
         //mqttErrorPublish("{\"Pressure Error\":1}");
-    } else if(pm_measures.Pressure >= pm_measures.PressureMedThreshold)
+    } else if(pm_measures.Pressure >= pm_measures.PressureMedThreshold) {
         PSIError = false;
+    }
 
     //UPdate Nextion TFT
     //UpdateTFT();
