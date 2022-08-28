@@ -7,6 +7,7 @@
 #define PM_Pool_Manager_h
 
 #define LOG_LEVEL LOG_INFO      // Possible levels : NONE/ERROR/WARNING/INFO/DEBUG/VERBOSE
+//#define LOG_LEVEL LOG_DEBUG      // Possible levels : NONE/ERROR/WARNING/INFO/DEBUG/VERBOSE
 
 #include <Arduino.h>
 #include <RTClib.h>

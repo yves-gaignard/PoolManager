@@ -89,6 +89,13 @@ const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 
 #define ORP_SENSOR_Pin        35
 #define PRESSURE_SENSOR_Pin   36
 
+//Digital input pins connected to Acid and Chl tank level reed switches
+//#define CHL_LEVEL             39   // not wired. Use NO_LEVEL option of Pump class
+//#define PH_LEVEL              36   //                - " -
+
+// Timeout period of the Task Watchdog Timer (TWDT) in seconds
+#define WDT_TIMEOUT           10
+
 // Loop tasks scheduling parameters
 //---------------------------------
 // T1 : PM_Task_AnalogPoll

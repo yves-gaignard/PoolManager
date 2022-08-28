@@ -100,6 +100,7 @@ ulong PM_Config::GetFiltrationDuration (float waterTemperature) {
   int NumberLine = PM_FiltrationDuration_Abaqus.size();
   ulong DurationInSeconds = 2 * 3600; // in any case, the duration must be greater than 0
   tm tm_duration;   
+  
   for (int i = 0; i <= NumberLine-1; i++ ) {
     if ((float)PM_FiltrationDuration_Abaqus[i].TempMin <= waterTemperature && waterTemperature < (float)PM_FiltrationDuration_Abaqus[i].TempMax) {
       DurationInSeconds = PM_FiltrationDuration_Abaqus[i].Duration * 3600;

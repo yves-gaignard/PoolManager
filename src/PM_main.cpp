@@ -22,6 +22,8 @@
 #include <PID_v1.h>                // Library for PID controller (Proportional–Integral–Derivative controller)
 #include <time.h>                  // Library for management time
 #include <FreeRTOS.h>
+#include <esp_task_wdt.h>          // ESP task management library
+
 
 // Project definitions
 #include "PM_Pool_Manager.h"       // Pool manager constant declarations
@@ -303,6 +305,25 @@ void setup() {
   // Attribute the GPIOs
   pinMode(PM_DisplayButton_Pin, INPUT_PULLUP);
   attachInterrupt(PM_DisplayButton_Pin, PM_DisplayButton_ISR, FALLING);
+
+  //Define pins directions
+  pinMode(FILTRATION_PUMP_Pin, OUTPUT);
+  pinMode(PH_PUMP_Pin, OUTPUT);
+  pinMode(CHL_PUMP_Pin, OUTPUT);
+
+  pinMode(LIGHT_BUZZER_Pin, OUTPUT);
+
+  // As the relays on the board are activated by a LOW level, set all levels HIGH at startup
+  digitalWrite(FILTRATION_PUMP_Pin,HIGH);
+  digitalWrite(PH_PUMP_Pin,HIGH); 
+  digitalWrite(CHL_PUMP_Pin,HIGH);
+  
+  // Warning: pins used here have no pull-ups, provide external ones
+  // pinMode(CHL_LEVEL, INPUT);
+  // pinMode(PH_LEVEL, INPUT);
+
+  // Initialize watch-dog
+  esp_task_wdt_init(WDT_TIMEOUT, true);
   
   // Declare temperature sensors
   PM_Temperature_Init();
@@ -344,12 +365,12 @@ void setup() {
   now = pftime::time(nullptr); // get current time
   time_tm = pftime::localtime(&now, &usec);  // Change in localtime
   strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-  LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
+  //LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
  
-  LOG_D(TAG, "AutoMode  : %d",pm_measures.AutoMode);
-  LOG_D(TAG, "now       : %d",now);
-  LOG_D(TAG, "Start Time: %d",pm_measures.FiltrationStartTime);
-  LOG_D(TAG, "End   Time: %d",pm_measures.FiltrationEndTime);
+  //LOG_D(TAG, "AutoMode  : %d",pm_measures.AutoMode);
+  //LOG_D(TAG, "now       : %d",now);
+  //LOG_D(TAG, "Start Time: %d",pm_measures.FiltrationStartTime);
+  //LOG_D(TAG, "End   Time: %d",pm_measures.FiltrationEndTime);
 
   if (pm_measures.AutoMode && (now >= pm_measures.FiltrationStartTime) && (now < pm_measures.FiltrationEndTime)) {
     FiltrationPump.Start();
@@ -941,12 +962,11 @@ void PM_SetOrpPID(bool Enable)
 // =================================================================================================
 void PM_CalculateNextFiltrationPeriods() {
 
-  if (pm_measures.DayFiltrationDuration == 0 ) {
-    // calculate the filtration duration in seconds depending on the water temperature
-    pm_measures.DayFiltrationDuration = Pool_Configuration.GetFiltrationDuration(pm_measures.WaterTemp);
-    saveParam("DayFiltDuration", (unsigned long)pm_measures.DayFiltrationDuration);
-  }
+  // calculate the filtration duration in seconds depending on the water temperature
   LOG_D(TAG, "Water temperature: %6.2f", pm_measures.WaterTemp);
+  pm_measures.DayFiltrationDuration = Pool_Configuration.GetFiltrationDuration(pm_measures.WaterTemp);
+  saveParam("DayFiltDuration", (unsigned long)pm_measures.DayFiltrationDuration);
+
   tm tm_duration = PM_Time_Mngt_convertSecondsToTm(pm_measures.DayFiltrationDuration);
   LOG_D(TAG, "Filtration duration for this day: %02d:%02d:%02d (%ds)", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, pm_measures.DayFiltrationDuration);
   
