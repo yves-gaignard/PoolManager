@@ -84,6 +84,7 @@ void PM_OTA_Web_Srv_root(AsyncWebServerRequest *request) {
 void PM_OTA_Web_Srv_getMeasures(AsyncWebServerRequest *request) {
   const int capacity = JSON_OBJECT_SIZE(48);
   StaticJsonDocument<capacity> root;
+  LOG_I(TAG, "Start API Get measuressend");
   
   root["Vers"]   = pm_measures.PMVersion;                 //firmware revision
   root["FedDur"] = pm_measures.FilteredDuration;          // Filtration Duration since the begin of the day
@@ -100,7 +101,7 @@ void PM_OTA_Web_Srv_getMeasures(AsyncWebServerRequest *request) {
   root["OrpROO"] = pm_measures.Orp_RegulationOnOff;   
   root["FPmpS"]  = pm_measures.FilterPumpState;   
   root["pHPmpS"] = pm_measures.pHMinusPumpState;   
-  root["OrpPmp"] = pm_measures.ChlorinePumpState;   
+  root["OrpPmpS"]= pm_measures.ChlorinePumpState;   
 
   root["IATemp"] = pm_measures.InAirTemp;   
   root["WaTemp"] = pm_measures.WaterTemp;   
@@ -148,5 +149,6 @@ void PM_OTA_Web_Srv_getMeasures(AsyncWebServerRequest *request) {
   String response;
   serializeJson(root, response);  
   request->send(200, "application/json", response.c_str());
+  LOG_I(TAG, "End API Get measuressend");
 }
 
