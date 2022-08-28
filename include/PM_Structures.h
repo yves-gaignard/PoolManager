@@ -98,30 +98,4 @@ struct PM_SwimmingPoolMeasures {
   float   ChlorineTankFill;               // % Fill of volume of the Chlorine tank
 };
 
-
-struct PM_SwimmingPoolMeasures_str {
-  std::string  Timestamp_str;                  // Last modification timestamp
-  std::string  InAirTemp_str;                  // Inside air temperature in °C (string format: 28.2 °)
-  std::string  WaterTemp_str;                  // Water temperature in °C of the swimming pool (string format 25.2 °)
-  std::string  OutAirTemp_str;                 // Outside air temperature in °C (string format 15.4 °)
-  std::string  pH_str;                         // pH unit (string format 7.2)
-  std::string  pHPIDwindowStartTime_str;       // pH PID window start time   
-  std::string  Chlorine_str;                   // redox measure unit: mV (string format 3000 mV)
-  std::string  ChlorinePIDwindowStartTime_str; // Chlorine PID window start time   
-  std::string  ChlorineMin_str;                // Minimum acceptable redox measure unit: mV (string format 3000 mV)
-  std::string  ChlorineMax_str;                // Maximum acceptable redox measure unit: mV (string format 3000 mV)
-  std::string  DayFilterTime_str;              // Filter Time since the begin of the day (string format 15h26)
-  std::string  MaxDayFilterTime_str;           // Maximum Filter Time since the begin of the day (string format 16h)
-  std::string  pHMinusVolume_str;              // Volume of pH Minus liquid since the last complete fill of the container (string format 20.4 l)
-  std::string  ChlorineVolume_str;             // Volume of liquid chlorine since the last complete fill of the container (string format 12.9 l)
-  std::string  ConsumedInstantaneousPower_str; // Instantaneous Power in Watt consumed by the filtration pump (string format 2514 W)
-  std::string  DayConsumedPower_str;           // Power in Watt consumed by the filtration pump since the begin of the day (string format 25 kWh)
-  std::string  Pressure_str;                   // Pressure in the filtering device (unit hPa) (string format)
-  std::string  FilterPumpState_str;            // State of the filtering pump (ON  , OFF)
-  std::string  pHMinusPumpState_str;           // State of the pH- pump (ON, OFF)
-  std::string  ChlorinePumpState;              // State of the pH- pump (ON, OFF)
-  std::string  pHMinusMaxVolume_str;           // Volume max of the pH- container (string format 20.0 l)
-  std::string  ChlorineMaxVolume_str;          // Volume max of the Chlorine container (string format 20.0 l)
-};
-
 #endif

@@ -5,7 +5,7 @@
 */
 
 #define TAG "PM_main"
-// #define NVS_RESET_DEBUG   // if necessary uncomment this line to reset all data stored in the NVS (Non Volatile Storage)
+//#define NVS_RESET_DEBUG   // if necessary uncomment this line to reset all data stored in the NVS (Non Volatile Storage)
 
 // Standard library definitions
 #include <Arduino.h>
@@ -22,6 +22,8 @@
 #include <PID_v1.h>                // Library for PID controller (Proportional–Integral–Derivative controller)
 #include <time.h>                  // Library for management time
 #include <FreeRTOS.h>
+#include <esp_task_wdt.h>          // ESP task management library
+
 
 // Project definitions
 #include "PM_Pool_Manager.h"       // Pool manager constant declarations
@@ -51,7 +53,10 @@ RTC_DS3231 rtc;  // RTC device handle
 boolean    isRTCFound     = true;
 boolean    isRTCLostPower = true;
 
-time_t     now;  // Current time (global variable)
+time_t      now;  // Current time (global variable)
+suseconds_t usec;
+char timestamp_str[20];
+tm* time_tm;
 
 // Array of I2C Devices
 static byte I2CDevices[128];
@@ -113,7 +118,7 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   0.0,   // float   ChlorineVolume;                 // Volume of liquid chlorine since the last complete fill of the container
   0,     // int32_t ConsumedInstantaneousPower;     // Instantaneous Power in Watt consumed by the filtration pump
   0,     // int32_t DayConsumedPower;               // Power in Watt consumed by the filtration pump since the begin of the day
-  0.0,   // float   Pressure;                       // Pressure in the filtering device (unit hPa)
+  1.5,   // float   Pressure;                       // Pressure in the filtering device (unit hPa)
   1.8,   // float   PressureHighThreshold;          // Pressure to consider the filtration pump is started
   0.7,   // float   PressureMedThreshold;           // Pressure to consider the filtration pump is stopped
   1.0,   // double  PSICalibCoeffs0;
@@ -133,9 +138,9 @@ PM_SwimmingPoolMeasures     pm_measures     = {
 // The three pumps of the system (instanciate the Pump class)
 // In this case, all pumps start/Stop are managed by relays. pH and ORP pumps are interlocked with 
 // filtration pump
-PM_Pump FiltrationPump(FILTRATION_PUMP, FILTRATION_PUMP);
-PM_Pump PhPump(PH_PUMP, PH_PUMP, NO_LEVEL, FILTRATION_PUMP, pm_measures.pHMinusFlowRate,  pm_measures.pHMinusTankVolume, pm_measures.pHMinusTankFill);
-PM_Pump ChlPump(CHL_PUMP, CHL_PUMP, NO_LEVEL, FILTRATION_PUMP, pm_measures.ChlorineFlowRate, pm_measures.ChlorineTankVolume, pm_measures.ChlorineTankFill);
+PM_Pump FiltrationPump(FILTRATION_PUMP_Pin, FILTRATION_PUMP_Pin);
+PM_Pump PhPump(PH_PUMP_Pin, PH_PUMP_Pin, NO_LEVEL, FILTRATION_PUMP_Pin, pm_measures.pHMinusFlowRate,  pm_measures.pHMinusTankVolume, pm_measures.pHMinusTankFill);
+PM_Pump ChlPump(CHL_PUMP_Pin, CHL_PUMP_Pin, NO_LEVEL, FILTRATION_PUMP_Pin, pm_measures.ChlorineFlowRate, pm_measures.ChlorineTankVolume, pm_measures.ChlorineTankFill);
 
 //PIDs instances
 //Specify the links and initial tuning parameters
@@ -216,9 +221,9 @@ void setup() {
   Log.setTag("PM_Time_Mngt"        , LOG_LEVEL);
   Log.setTag("PM_Wifi"             , LOG_LEVEL);
   Log.setTag("PM_Tasks"            , LOG_LEVEL);
-  Log.setTag("PM_Task_Pool_Manager", LOG_VERBOSE);
-  Log.setTag("PM_Tasks_Sensors"    , LOG_VERBOSE);
-  Log.setTag("PM_Tasks_Regulation" , LOG_VERBOSE);
+  Log.setTag("PM_Task_Pool_Manager", LOG_DEBUG);
+  Log.setTag("PM_Tasks_Sensors"    , LOG_DEBUG);
+  Log.setTag("PM_Tasks_Regulation" , LOG_DEBUG);
   Log.setTag("PM_Screen"           , LOG_LEVEL);
     
   // Log.formatTimestampOff(); // time in milliseconds (if necessary)
@@ -249,9 +254,11 @@ void setup() {
   strcpy(LocalTimeFormat, PM_LocalTimeFormat);
   LOG_D(TAG, "Current date and local time is: %s", Now.toString(LocalTimeFormat));
   */
-  char timestamp_str[20];
-  tm* time_tm = localtime(&now);
-	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
+  //suseconds_t usec;
+  //char timestamp_str[20];
+  now = pftime::time(nullptr); // get current time
+  time_tm = pftime::localtime(&now, &usec);  // Change in localtime
+  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
   LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
  
 #ifdef NVS_RESET_DEBUG
@@ -298,6 +305,25 @@ void setup() {
   // Attribute the GPIOs
   pinMode(PM_DisplayButton_Pin, INPUT_PULLUP);
   attachInterrupt(PM_DisplayButton_Pin, PM_DisplayButton_ISR, FALLING);
+
+  //Define pins directions
+  pinMode(FILTRATION_PUMP_Pin, OUTPUT);
+  pinMode(PH_PUMP_Pin, OUTPUT);
+  pinMode(CHL_PUMP_Pin, OUTPUT);
+
+  pinMode(LIGHT_BUZZER_Pin, OUTPUT);
+
+  // As the relays on the board are activated by a LOW level, set all levels HIGH at startup
+  digitalWrite(FILTRATION_PUMP_Pin,HIGH);
+  digitalWrite(PH_PUMP_Pin,HIGH); 
+  digitalWrite(CHL_PUMP_Pin,HIGH);
+  
+  // Warning: pins used here have no pull-ups, provide external ones
+  // pinMode(CHL_LEVEL, INPUT);
+  // pinMode(PH_LEVEL, INPUT);
+
+  // Initialize watch-dog
+  esp_task_wdt_init(WDT_TIMEOUT, true);
   
   // Declare temperature sensors
   PM_Temperature_Init();
@@ -336,6 +362,16 @@ void setup() {
 
   // Start filtration pump at power-on if within scheduled time slots -- You can choose not to do this and start pump manually
   PM_CalculateNextFiltrationPeriods();
+  now = pftime::time(nullptr); // get current time
+  time_tm = pftime::localtime(&now, &usec);  // Change in localtime
+  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
+  //LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
+ 
+  //LOG_D(TAG, "AutoMode  : %d",pm_measures.AutoMode);
+  //LOG_D(TAG, "now       : %d",now);
+  //LOG_D(TAG, "Start Time: %d",pm_measures.FiltrationStartTime);
+  //LOG_D(TAG, "End   Time: %d",pm_measures.FiltrationEndTime);
+
   if (pm_measures.AutoMode && (now >= pm_measures.FiltrationStartTime) && (now < pm_measures.FiltrationEndTime)) {
     FiltrationPump.Start();
     LOG_I(TAG, "Start filtration pump");
@@ -363,7 +399,7 @@ void setup() {
   //                          Function                    Name               Stack  Param PRIO  Handle                core
   //xTaskCreatePinnedToCore(PM_Task_AnalogPoll,      "PM_Task_AnalogPoll",      3072, NULL, 1, nullptr,            app_cpu);  // Analog measurement polling task
   //  xTaskCreatePinnedToCore(PM_Task_ProcessCommand,  "PM_Task_ProcessCommand",  3072, NULL, 1, nullptr,            app_cpu); // MQTT commands processing
-  //xTaskCreatePinnedToCore(PM_Task_Pool_Manager,    "PM_Task_Pool_Manager",    3072, NULL, 1, nullptr,            app_cpu); // Pool Manager: Supervisory task
+  xTaskCreatePinnedToCore(PM_Task_Pool_Manager,    "PM_Task_Pool_Manager",    3072, NULL, 1, nullptr,            app_cpu); // Pool Manager: Supervisory task
   xTaskCreatePinnedToCore(PM_Task_GetTemperature,  "PM_Task_GetTemperature",  3072, NULL, 1, nullptr,            app_cpu); // Temperatures measurement
   //xTaskCreatePinnedToCore(PM_Task_OrpRegulation,   "PM_Task_OrpRegulation",   2048, NULL, 1, nullptr,            app_cpu); // ORP regulation loop
   //xTaskCreatePinnedToCore(PM_Task_pHRegulation,    "PM_Task_pHRegulation",    2048, NULL, 1, nullptr,            app_cpu); // pH regulation loop
@@ -560,51 +596,11 @@ void PM_Time_Init() {
   // Initialize time from NTP server
    PM_Time_Mngt_initialize_time();
   
+  suseconds_t usec;
   char timestamp_str[20];
-  tm* time_tm = localtime(&now);
+  tm* time_tm = pftime::localtime(nullptr, &usec);
 	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
   LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
-
-  /*
-  // If there is no RTC module or if it lost its power, set the time with the NTP time
-  if (isRTCLostPower == true || isRTCFound == true) {
-    LOG_I(TAG, "Initialize RTC time with NTP server");
-
-    // Get current time
-    time(&now);
-    // adjust time of rtc with the time get from NTP server
-    DateTime DT_now (now);
-    if (DT_now.isValid()) {
-      char DT_now_str[20]= "YYYY-MM-DD hh:mm:ss";
-      DT_now.toString(DT_now_str);
-      LOG_I(TAG, "Adjust the time of RTC with the NTP time: %s", DT_now_str);
-      rtc.adjust(DT_now);
-    }
-    else {
-      LOG_E(TAG, "Cannot set time to RTC as DT_now is not valid !!!!" );
-    }
-  }
-  
-  // if there is a RTC module, set the time with RTC time
-  if (isRTCFound == true) {
-    
-    // set time with the RTC time
-    DateTime DT_now (rtc.now());
-    char DT_now_str[20]= "YYYY-MM-DD hh:mm:ss";
-    DT_now.toString(DT_now_str);
-    LOG_I(TAG, "Get the time from RTC: %s", DT_now_str);
-    
-    // set the time
-    now = DT_now.unixtime();
-    LOG_I(TAG, "rtc.now = %u", now );
-    timeval tv = {now, 0}; 
-    timezone tz = {0,0} ;
-    int ret = settimeofday(&tv, &tz);
-    if ( ret != 0 ) {LOG_E(TAG, "Cannot set time from RTC" ); };
-    
-  }
-  */
-  
 }
 // =================================================================================================
 //                           MEASURES INITIALIZATION FROM STORAGE
@@ -743,7 +739,8 @@ bool PM_NVS_Load() {
 // =================================================================================================
 bool PM_NVS_Save() {
 
-  localtime(&now);
+  now = pftime::time(nullptr); // get current time
+  time_tm = pftime::localtime(&now, &usec);  // Change in localtime
   nvs.begin(Project.Name.c_str(),false);
 
   // Beware : the key maximum length is only 15 characters
@@ -965,12 +962,11 @@ void PM_SetOrpPID(bool Enable)
 // =================================================================================================
 void PM_CalculateNextFiltrationPeriods() {
 
-  if (pm_measures.DayFiltrationDuration == 0 ) {
-    // calculate the filtration duration in seconds depending on the water temperature
-    pm_measures.DayFiltrationDuration = Pool_Configuration.GetFiltrationDuration(pm_measures.WaterTemp);
-    saveParam("DayFiltDuration", (unsigned long)pm_measures.DayFiltrationDuration);
-  }
+  // calculate the filtration duration in seconds depending on the water temperature
   LOG_D(TAG, "Water temperature: %6.2f", pm_measures.WaterTemp);
+  pm_measures.DayFiltrationDuration = Pool_Configuration.GetFiltrationDuration(pm_measures.WaterTemp);
+  saveParam("DayFiltDuration", (unsigned long)pm_measures.DayFiltrationDuration);
+
   tm tm_duration = PM_Time_Mngt_convertSecondsToTm(pm_measures.DayFiltrationDuration);
   LOG_D(TAG, "Filtration duration for this day: %02d:%02d:%02d (%ds)", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, pm_measures.DayFiltrationDuration);
   

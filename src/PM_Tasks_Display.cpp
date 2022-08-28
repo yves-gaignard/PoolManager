@@ -7,6 +7,7 @@
 
 #include <Arduino.h>
 #include <FreeRTOS.h>
+#include <ESPPerfectTime.h>
 
 #include "PM_Tasks.h"
 #include "PM_Parameters.h"
@@ -34,17 +35,18 @@ void PM_Task_LCD       ( void *pvParameters ) {
   TickType_t ticktime = xTaskGetTickCount();
   static UBaseType_t hwm = 0;
   
-  //UBaseType_t uxPriority;
-  //uxPriority = uxTaskPriorityGet( NULL );
+  UBaseType_t uxPriority;
+  uxPriority = uxTaskPriorityGet( NULL );
   tm * time_tm;
   char timestamp_str[20];
   time_t now;
+  suseconds_t usec;
 
   for( ;; ) {
-    time(&now);
-    time_tm = localtime(&now);
-	strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    //LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
+    now = pftime::time(nullptr); // get current time
+    time_tm = pftime::localtime(&now, &usec);  // Change in localtime
+	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
+    LOG_V(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
     // if lcd display button is pressed then set the display ON in case of OFF
     if ( PM_Display_Activation_Request == true) {
@@ -104,16 +106,18 @@ void PM_Task_WebServer ( void *pvParameters ) {
   TickType_t ticktime = xTaskGetTickCount();
   static UBaseType_t hwm = 0;
   //const char *pcTaskName = "Task_WebServer";
-  //UBaseType_t uxPriority;
-  //uxPriority = uxTaskPriorityGet( NULL );
+  UBaseType_t uxPriority;
+  uxPriority = uxTaskPriorityGet( NULL );
   tm * time_tm;
   char timestamp_str[20];
   time_t now;
+  suseconds_t usec;
+  
   for( ;; ) {
-    time(&now);
-    time_tm = localtime(&now);
+    now = pftime::time(nullptr); // get current time
+    time_tm = pftime::localtime(&now, &usec);  // Change in localtime
     strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
-    //LOG_D(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
+    LOG_V(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
     stack_mon(hwm);
     vTaskDelayUntil(&ticktime,period);
