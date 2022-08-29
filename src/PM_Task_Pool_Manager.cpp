@@ -123,15 +123,17 @@ void PM_Task_Pool_Manager(void *pvParameters)
       d_calc = true;
     }
     else if(tm_now->tm_hour == 1) {
-      DoneForTheDay = false;
-      LOG_I(TAG, " !!!!! --- It is 01am --- End of new day computation --- !!!!!");
+      if (DoneForTheDay) {
+        DoneForTheDay = false;
+        LOG_I(TAG, " !!!!! --- It is 01am --- End of new day computation --- !!!!!");
+      }
     }
 
     //start filtration pump as scheduled
     if (!EmergencyStopFiltPump && !FiltrationPump.IsRunning() && pm_measures.AutoMode &&
         !PSIError && now >= pm_measures.FiltrationStartTime && now < pm_measures.FiltrationEndTime ) {
             FiltrationPump.Start();
-            LOG_I(TAG, " !!!!! --- Start Filtration --- !!!!!");
+            LOG_I(TAG, " !!!!! --- Start Filtration pump as scheduled --- !!!!!");
         }
     
     // start PIDs with delay after FiltrationStart in order to let the readings stabilize
@@ -144,7 +146,7 @@ void PM_Task_Pool_Manager(void *pvParameters)
         //Start PIDs
         SetPhPID(true);
         SetOrpPID(true);
-        LOG_I(TAG, " !!!!! --- Start pH and Orp PID --- !!!!!");
+        LOG_I(TAG, " !!!!! --- Start pH and Orp PID as scheduled --- !!!!!");
     }
 
     //stop filtration pump and PIDs as scheduled unless we are in AntiFreeze mode
