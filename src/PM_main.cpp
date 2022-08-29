@@ -71,8 +71,7 @@ PM_Screens screens;
 Preferences nvs;   
 
 // swimming pool measures
-PM_SwimmingPoolMeasures     pm_measures     = { 
-  now,   // time_t  Timestamp;                      // Last modification timestamp
+PM_SwimmingPoolMeasures     pm_measures     = {
   PM_VERSION, //  uint8_t PMVersion;                // version of the structure
   true,  // bool    AutoMode;                       // Mode Automatic (true) or Manual (false)
   false, // bool    WinterMode;                     // Winter Mode if true
@@ -108,10 +107,13 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   0.0,   // double  Orp_Kd;
   -876.430775, // double  OrpCalibCoeffs0;
   2328.8985,   // double  OrpCalibCoeffs1;
-  0,     // time_t  FilteredDuration;               // Filtration Duration since the begin of the day
-  0,     // time_t  DayFiltrationDuration;          // Maximum Filtration duration for the whole day
-  0,     // time_t  FiltrationStartTime;            // Next start time of the filtration
-  0,     // time_t  FiltrationEndTime;              // Next end time of the filtration
+  0,     // time_t  DayFiltrationUptime;            // Filtration Duration since the begin of the day
+  0,     // time_t  DayFiltrationTarget;            // Maximum Filtration duration for the whole day
+  0,     // time_t  PeriodFiltrationUptime;         // Filtration Duration since the begin of the period
+  0,     // time_t  PeriodFiltrationStartTime;      // Next period start time of the filtration
+  0,     // time_t  PeriodFiltrationEndTime;        // Next period end time of the filtration
+  0,     // time_t  PreviousDayFiltrationUptime;    // Filtration Duration of the previous day
+  0,     // time_t  PreviousDayFiltrationTarget;    // Target Filtration duration of the previous day
   PM_pH_Pump_Flow_Rate,       // float   pHMinusFlowRate;    // Flow rate of pH Minus liquid injected (liter per hour)
   PM_Chlorine_Pump_Flow_Rate, // float   ChlorineFlowRate;   // Flow rate of Chlorine liquid injected (liter per hour)
   0.0,   // float   pHMinusVolume;                  // Volume of pH Minus liquid since the last complete fill of the container
@@ -225,6 +227,7 @@ void setup() {
   Log.setTag("PM_Tasks_Sensors"    , LOG_DEBUG);
   Log.setTag("PM_Tasks_Regulation" , LOG_DEBUG);
   Log.setTag("PM_Screen"           , LOG_LEVEL);
+  Log.setTag("PM_Pump"             , LOG_LEVEL);
     
   // Log.formatTimestampOff(); // time in milliseconds (if necessary)
   LOG_I(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
@@ -367,18 +370,29 @@ void setup() {
   strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
   //LOG_D(TAG, "Current date and local time is: %s", timestamp_str);
  
-  //LOG_D(TAG, "AutoMode  : %d",pm_measures.AutoMode);
-  //LOG_D(TAG, "now       : %d",now);
-  //LOG_D(TAG, "Start Time: %d",pm_measures.FiltrationStartTime);
-  //LOG_D(TAG, "End   Time: %d",pm_measures.FiltrationEndTime);
+  //LOG_D(TAG, "AutoMode     : %d",pm_measures.AutoMode);
+  //LOG_D(TAG, "now          : %d",now);
+  //LOG_D(TAG, "Period Uptime: %d",pm_measures.PeriodFiltrationUptime);
+  //LOG_D(TAG, "Start Time   : %d",pm_measures.PeriodFiltrationStartTime);
+  //LOG_D(TAG, "End   Time   : %d",pm_measures.PeriodFiltrationEndTime);
 
-  if (pm_measures.AutoMode && (now >= pm_measures.FiltrationStartTime) && (now < pm_measures.FiltrationEndTime)) {
-    FiltrationPump.Start();
-    LOG_I(TAG, "Start filtration pump");
+  if (pm_measures.AutoMode && (now >= pm_measures.PeriodFiltrationStartTime) && (now < pm_measures.PeriodFiltrationEndTime)) {
+    if (FiltrationPump.Start() ) {
+      LOG_D(TAG, "Start filtration pump");
+      LOG_D(TAG, "PhPump.IsRunning() = %d", PhPump.IsRunning());
+    } 
+    else {
+      LOG_E(TAG, "Cannot Start filtration pump !!!!");
+    }
   }
   else {
-    FiltrationPump.Stop();
-    LOG_I(TAG, "Stop filtration pump");
+    if (FiltrationPump.Stop() ) {
+      LOG_D(TAG, "Stop filtration pump");
+      LOG_D(TAG, "PhPump.IsRunning() = %d", PhPump.IsRunning());
+    }
+    else {
+      LOG_E(TAG, "Cannot Stop filtration pump !!!!");
+    }
   } 
 
 
@@ -500,13 +514,13 @@ void PM_Display_screen_1() {
 
   tm * time_tm;
   char timestamp_str[20];
-  time_tm = localtime(&pm_measures.FilteredDuration);
+  time_tm = localtime(&pm_measures.DayFiltrationUptime);
 	strftime(timestamp_str, sizeof(timestamp_str), PM_HourMinFormat, time_tm);
-  std::string FilteredDuration = timestamp_str;
-  time_tm = localtime(&pm_measures.DayFiltrationDuration);
+  std::string DayFiltrationUptime = timestamp_str;
+  time_tm = localtime(&pm_measures.DayFiltrationTarget);
 	strftime(timestamp_str, sizeof(timestamp_str), PM_HourMinFormat, time_tm);
-  std::string DayFiltrationDuration = timestamp_str;
-  screen.push_back("Filter:"+FilteredDuration+" / "+DayFiltrationDuration);
+  std::string DayFiltrationTarget = timestamp_str;
+  screen.push_back("Filtration:"+DayFiltrationUptime+"/"+DayFiltrationTarget);
   
   std::string pHMinusVolume  = PM_ftoa(pm_measures.pHMinusVolume, "%3.2f");
   std::string ChlorineVolume = PM_ftoa(pm_measures.ChlorineVolume, "%3.2f");
@@ -654,7 +668,6 @@ bool PM_NVS_Load() {
   // Beware : the key maximum length is only 15 characters
   
   pm_measures.PMVersion                  = nvs.getUChar ("PMVersion"      ,0);
-  pm_measures.Timestamp                  = nvs.getULong ("Timestamp"      ,0);
   pm_measures.AutoMode                   = nvs.getBool  ("AutoMode"       ,true);
   pm_measures.WinterMode                 = nvs.getBool  ("WinterMode"     ,false);
   pm_measures.InAirTemp                  = nvs.getFloat ("InAirTemp"      ,0.0);
@@ -686,10 +699,13 @@ bool PM_NVS_Load() {
   pm_measures.OrpCalibCoeffs0            = nvs.getDouble("OrpCalibCoeffs0",0.0);
   pm_measures.OrpCalibCoeffs1            = nvs.getDouble("OrpCalibCoeffs1",0.0);
   pm_measures.DelayPIDs                  = nvs.getUChar ("DelayPIDs"      ,0);
-  pm_measures.FilteredDuration           = nvs.getULong ("FiltDuration"   ,0);
-  pm_measures.DayFiltrationDuration      = nvs.getULong ("DayFiltDuration",0);
-  pm_measures.FiltrationStartTime        = nvs.getULong ("FiltraStartTime",0);
-  pm_measures.FiltrationEndTime          = nvs.getULong ("FiltraEndTime"  ,0);
+  pm_measures.DayFiltrationUptime        = nvs.getULong ("DayFiltrUptime" ,0);
+  pm_measures.DayFiltrationTarget        = nvs.getULong ("DayFiltrTarget" ,0);
+  pm_measures.PeriodFiltrationUptime     = nvs.getULong ("PFiltrUptime"   ,0);
+  pm_measures.PeriodFiltrationStartTime  = nvs.getULong ("PFiltrStartTime",0);
+  pm_measures.PeriodFiltrationEndTime    = nvs.getULong ("PFiltrEndTime"  ,0);
+  pm_measures.PreviousDayFiltrationUptime= nvs.getULong ("PDayFiltrUptime",0);
+  pm_measures.PreviousDayFiltrationTarget= nvs.getULong ("PDayFiltrTarget",0);
   pm_measures.pHMinusFlowRate            = nvs.getFloat ("pHMinusFlowRate",0.0);
   pm_measures.ChlorineFlowRate           = nvs.getFloat ("ChlorinFlowRate",0.0);
   pm_measures.pHMinusVolume              = nvs.getFloat ("pHMinusVolume"  ,0.0);
@@ -712,7 +728,6 @@ bool PM_NVS_Load() {
   nvs.end();
 
   LOG_D(TAG, "%d", pm_measures.PMVersion);
-  LOG_D(TAG, "%d", pm_measures.Timestamp);
   LOG_D(TAG, "%d, %d, %d, %d, %d", pm_measures.AutoMode, pm_measures.WinterMode, pm_measures.pH_RegulationOnOff, pm_measures.Orp_RegulationOnOff, pm_measures.DelayPIDs);
   LOG_D(TAG, "%2.2f, %2.2f, %2.2f,%2.2f", pm_measures.InAirTemp, pm_measures.WaterTemp,pm_measures.OutAirTemp, pm_measures.WaterTempLowThreshold);
   LOG_D(TAG, "%2.2f, %4.0f", pm_measures.pHValue, pm_measures.OrpValue);
@@ -722,8 +737,9 @@ bool PM_NVS_Load() {
   LOG_D(TAG, "%4.0f, %4.0f, %8.0f, %3.0f, %3.0f", pm_measures.pHPIDOutput, pm_measures.pH_SetPoint, pm_measures.pH_Kp, pm_measures.pH_Ki, pm_measures.pH_Kd);
   LOG_D(TAG, "%4.0f, %4.0f, %8.0f, %3.0f, %3.0f", pm_measures.OrpPIDOutput, pm_measures.Orp_SetPoint, pm_measures.Orp_Kp, pm_measures.Orp_Ki, pm_measures.Orp_Kd);
   LOG_D(TAG, "%f, %f, %f, %f, %f, %f", pm_measures.pHCalibCoeffs0, pm_measures.pHCalibCoeffs1, pm_measures.OrpCalibCoeffs0, pm_measures.OrpCalibCoeffs1, pm_measures.PSICalibCoeffs0, pm_measures.PSICalibCoeffs1);
-  LOG_D(TAG, "%d, %d", pm_measures.FilteredDuration, pm_measures.DayFiltrationDuration);
-  LOG_D(TAG, "%d, %d", pm_measures.FiltrationStartTime, pm_measures.FiltrationEndTime);
+  LOG_D(TAG, "%d, %d", pm_measures.DayFiltrationUptime, pm_measures.DayFiltrationTarget);
+  LOG_D(TAG, "%d, %d", pm_measures.PreviousDayFiltrationUptime, pm_measures.PreviousDayFiltrationTarget);
+  LOG_D(TAG, "%d, %d, %d", pm_measures.PeriodFiltrationUptime, pm_measures.PeriodFiltrationStartTime, pm_measures.PeriodFiltrationEndTime);
   LOG_D(TAG, "%2.2f, %2.2f", pm_measures.pHMinusFlowRate, pm_measures.ChlorineFlowRate);
   LOG_D(TAG, "%2.2f, %2.2f", pm_measures.pHMinusVolume, pm_measures.ChlorineVolume);
   LOG_D(TAG, "%d, %d", pm_measures.ConsumedInstantaneousPower, pm_measures.DayConsumedPower);
@@ -747,7 +763,6 @@ bool PM_NVS_Save() {
 
   size_t i = 
        nvs.putUChar ("PMVersion",       pm_measures.PMVersion);
-  i += nvs.putULong ("Timestamp",       now);
   i += nvs.putBool  ("AutoMode",        pm_measures.AutoMode);
   i += nvs.putBool  ("WinterMode",      pm_measures.WinterMode);
   i += nvs.putFloat ("InAirTemp",       pm_measures.InAirTemp);
@@ -779,10 +794,13 @@ bool PM_NVS_Save() {
   i += nvs.putDouble("OrpCalibCoeffs0", pm_measures.OrpCalibCoeffs0);
   i += nvs.putDouble("OrpCalibCoeffs1", pm_measures.OrpCalibCoeffs1);
   i += nvs.putUChar ("DelayPIDs",       pm_measures.DelayPIDs);
-  i += nvs.putULong ("FiltDuration",    pm_measures.FilteredDuration);
-  i += nvs.putULong ("DayFiltDuration", pm_measures.DayFiltrationDuration);
-  i += nvs.putULong ("FiltraStartTime", pm_measures.FiltrationStartTime);
-  i += nvs.putULong ("FiltraEndTime",   pm_measures.FiltrationEndTime);
+  i += nvs.putULong ("DayFiltrUptime",  pm_measures.DayFiltrationUptime);
+  i += nvs.putULong ("DayFiltrTarget",  pm_measures.DayFiltrationTarget);
+  i += nvs.putULong ("PFiltrUptime",    pm_measures.PeriodFiltrationUptime);
+  i += nvs.putULong ("PFiltrStartTime", pm_measures.PeriodFiltrationStartTime);
+  i += nvs.putULong ("PFiltrEndTime",   pm_measures.PeriodFiltrationEndTime);
+  i += nvs.putULong ("PDayFiltrUptime", pm_measures.PreviousDayFiltrationUptime);
+  i += nvs.putULong ("PDayFiltrTarget", pm_measures.PreviousDayFiltrationTarget);
   i += nvs.putFloat ("pHMinusFlowRate", pm_measures.pHMinusFlowRate);
   i += nvs.putFloat ("ChlorinFlowRate", pm_measures.ChlorineFlowRate);
   i += nvs.putFloat ("pHMinusVolume",   pm_measures.pHMinusVolume);
@@ -964,25 +982,25 @@ void PM_CalculateNextFiltrationPeriods() {
 
   // calculate the filtration duration in seconds depending on the water temperature
   LOG_D(TAG, "Water temperature: %6.2f", pm_measures.WaterTemp);
-  pm_measures.DayFiltrationDuration = Pool_Configuration.GetFiltrationDuration(pm_measures.WaterTemp);
-  saveParam("DayFiltDuration", (unsigned long)pm_measures.DayFiltrationDuration);
+  pm_measures.DayFiltrationTarget = Pool_Configuration.GetFiltrationDuration(pm_measures.WaterTemp);
+  saveParam("DayFiltrTarget", (unsigned long)pm_measures.DayFiltrationTarget);
 
-  tm tm_duration = PM_Time_Mngt_convertSecondsToTm(pm_measures.DayFiltrationDuration);
-  LOG_D(TAG, "Filtration duration for this day: %02d:%02d:%02d (%ds)", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, pm_measures.DayFiltrationDuration);
+  tm tm_duration = PM_Time_Mngt_convertSecondsToTm(pm_measures.DayFiltrationTarget);
+  LOG_D(TAG, "Filtration duration for this day: %02d:%02d:%02d (%ds)", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, pm_measures.DayFiltrationTarget);
   
-  if (pm_measures.FilteredDuration <= pm_measures.DayFiltrationDuration) {
-    Pool_Configuration.NextFiltrationPeriod (pm_measures.FiltrationStartTime, pm_measures.FiltrationEndTime, pm_measures.FilteredDuration, pm_measures.DayFiltrationDuration);
-    saveParam("FiltraStartTime", (unsigned long)pm_measures.FiltrationStartTime);
-    saveParam("FiltraEndTime", (unsigned long)pm_measures.FiltrationEndTime);
+  if (pm_measures.DayFiltrationUptime <= pm_measures.DayFiltrationTarget) {
+    Pool_Configuration.NextFiltrationPeriod (pm_measures.PeriodFiltrationStartTime, pm_measures.PeriodFiltrationEndTime, pm_measures.DayFiltrationUptime, pm_measures.DayFiltrationTarget);
+    saveParam("PFiltrStartTime", (unsigned long)pm_measures.PeriodFiltrationStartTime);
+    saveParam("PFiltrEndTime", (unsigned long)pm_measures.PeriodFiltrationEndTime);
   }
 
   LOG_D(TAG, "Next Filtration period is:");
   tm tm_NextStartTime;
-  localtime_r(&pm_measures.FiltrationStartTime, &tm_NextStartTime);
+  localtime_r(&pm_measures.PeriodFiltrationStartTime, &tm_NextStartTime);
 
   tm tm_NextEndTime;
-  localtime_r(&pm_measures.FiltrationEndTime, &tm_NextEndTime);
+  localtime_r(&pm_measures.PeriodFiltrationEndTime, &tm_NextEndTime);
   
-  LOG_D(TAG, "- next start time: %04d/%02d/%02d %02d:%02d:%02d (%u)", tm_NextStartTime.tm_year+1900, tm_NextStartTime.tm_mon+1, tm_NextStartTime.tm_mday, tm_NextStartTime.tm_hour, tm_NextStartTime.tm_min, tm_NextStartTime.tm_sec, pm_measures.FiltrationStartTime);
-  LOG_D(TAG, "- next end time  : %04d/%02d/%02d %02d:%02d:%02d (%u)", tm_NextEndTime.tm_year+1900, tm_NextEndTime.tm_mon+1, tm_NextEndTime.tm_mday, tm_NextEndTime.tm_hour, tm_NextEndTime.tm_min, tm_NextEndTime.tm_sec, pm_measures.FiltrationEndTime);
+  LOG_D(TAG, "- next start time: %04d/%02d/%02d %02d:%02d:%02d (%u)", tm_NextStartTime.tm_year+1900, tm_NextStartTime.tm_mon+1, tm_NextStartTime.tm_mday, tm_NextStartTime.tm_hour, tm_NextStartTime.tm_min, tm_NextStartTime.tm_sec, pm_measures.PeriodFiltrationStartTime);
+  LOG_D(TAG, "- next end time  : %04d/%02d/%02d %02d:%02d:%02d (%u)", tm_NextEndTime.tm_year+1900, tm_NextEndTime.tm_mon+1, tm_NextEndTime.tm_mday, tm_NextEndTime.tm_hour, tm_NextEndTime.tm_min, tm_NextEndTime.tm_sec, pm_measures.PeriodFiltrationEndTime);
 }

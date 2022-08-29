@@ -86,16 +86,19 @@ void PM_OTA_Web_Srv_getMeasures(AsyncWebServerRequest *request) {
   StaticJsonDocument<capacity> root;
   LOG_V(TAG, "Start API Get measuressend");
   
-  root["Vers"]   = pm_measures.PMVersion;                 //firmware revision
-  root["FedDur"] = pm_measures.FilteredDuration;          // Filtration Duration since the begin of the day
-  root["DFDur"]  = pm_measures.DayFiltrationDuration;     // Maximum Filtration duration for the whole day
-  root["FSta"]   = pm_measures.FiltrationStartTime;       // Next start time of the filtration
-  root["FEnd"]   = pm_measures.FiltrationEndTime;         // Next end time of the filtration
-  root["pHUTL"]  = pm_measures.pHPumpUpTimeLimit / 60;    // Time in seconds max per day for pH injection
-  root["OrpUTL"] = pm_measures.OrpPumpUpTimeLimit / 60;   // Time in seconds max per day for Chlorine injection
+  root["Vers"]   = pm_measures.PMVersion;                    // firmware revision
+  root["DFUpt"]  = pm_measures.DayFiltrationUptime;          // Filtration Duration since the begin of the day
+  root["DFTrgt"] = pm_measures.DayFiltrationTarget;          // Maximum Filtration duration for the whole day
+  root["PFUpt"]  = pm_measures.PeriodFiltrationUptime;       // Filtration Duration since the begin of the period
+  root["PFSta"]  = pm_measures.PeriodFiltrationStartTime;    // Next period start time of the filtration
+  root["PFEnd"]  = pm_measures.PeriodFiltrationEndTime;      // Next period end time of the filtration
+  root["PDFUpt"] = pm_measures.PreviousDayFiltrationUptime;  // Filtration Duration of the previous day
+  root["PDFTrgt"]= pm_measures.PreviousDayFiltrationTarget;  // Target Filtration duration of the previous day
+  root["pHUTL"]  = pm_measures.pHPumpUpTimeLimit / 60;       // Time in seconds max per day for pH injection
+  root["OrpUTL"] = pm_measures.OrpPumpUpTimeLimit / 60;      // Time in seconds max per day for Chlorine injection
 
-  root["Auto"]   = pm_measures.AutoMode;   // Mode Automatic (true) or Manual (false)
-  root["Winter"] = pm_measures.WinterMode; // Winter Mode if true  
+  root["Auto"]   = pm_measures.AutoMode;                     // Mode Automatic (true) or Manual (false)
+  root["Winter"] = pm_measures.WinterMode;                   // Winter Mode if true  
   root["pHROO"]  = pm_measures.pH_RegulationOnOff;   
   root["OrpROO"] = pm_measures.Orp_RegulationOnOff;   
   root["FPmpS"]  = pm_measures.FilterPumpState;   

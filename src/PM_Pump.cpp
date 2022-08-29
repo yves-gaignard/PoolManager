@@ -1,5 +1,10 @@
+
+#define TAG "PM_Pump"
+
 #include <Arduino.h>
 #include "PM_Pump.h"
+
+#include "PM_Log.h"
 
 //Constructor
 //PumpPin is the Arduino relay output pin number to be switched to start/stop the pump
@@ -80,6 +85,11 @@ bool PM_Pump::Stop()
     return true;
   }
   else return false;
+}
+
+//Provide the UpTime of the pump since last starting time
+unsigned long PM_Pump::GetUpTime() {
+  return UpTime;
 }
 
 //Reset the tracking of running time
@@ -175,5 +185,7 @@ bool PM_Pump::Interlock()
 //pump status
 bool PM_Pump::IsRunning()
 {
+  LOG_D(TAG, "digitalRead(isrunningsensorpin)=%d",digitalRead(isrunningsensorpin));
+  LOG_D(TAG, "PUMP_ON=%d", PUMP_ON);
   return (digitalRead(isrunningsensorpin) == PUMP_ON);
 }

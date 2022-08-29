@@ -41,7 +41,6 @@ struct PM_FiltrationPeriod {
 
 #define PM_VERSION 1
 struct PM_SwimmingPoolMeasures {
-  time_t  Timestamp;                      // Last modification timestamp
   uint8_t PMVersion;                      // version of the structure
   bool    AutoMode;                       // Mode Automatic (true) or Manual (false)
   bool    WinterMode;                     // Winter Mode if true
@@ -77,10 +76,13 @@ struct PM_SwimmingPoolMeasures {
   double  Orp_Kd;
   double  OrpCalibCoeffs0;
   double  OrpCalibCoeffs1;
-  time_t  FilteredDuration;               // Filtration Duration since the begin of the day
-  time_t  DayFiltrationDuration;          // Maximum Filtration duration for the whole day
-  time_t  FiltrationStartTime;            // Next start time of the filtration
-  time_t  FiltrationEndTime;              // Next end time of the filtration
+  time_t  DayFiltrationUptime;            // Filtration Duration since the begin of the day
+  time_t  DayFiltrationTarget;            // Target Filtration duration for the whole day
+  time_t  PeriodFiltrationUptime;         // Filtration Duration since the begin of the period
+  time_t  PeriodFiltrationStartTime;      // Next period start time of the filtration
+  time_t  PeriodFiltrationEndTime;        // Next period end time of the filtration
+  time_t  PreviousDayFiltrationUptime;    // Filtration Duration of the previous day
+  time_t  PreviousDayFiltrationTarget;    // Target Filtration duration of the previous day
   float   pHMinusFlowRate;                // Flow rate of pH Minus liquid injected (liter per hour)
   float   ChlorineFlowRate;               // Flow rate of Chlorine liquid injected (liter per hour)
   float   pHMinusVolume;                  // Volume of pH Minus liquid since the last complete fill of the container

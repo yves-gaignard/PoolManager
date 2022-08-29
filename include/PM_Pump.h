@@ -39,7 +39,8 @@ class PM_Pump{
     bool Stop();
     bool IsRunning();
     bool TankLevel();
-    double GetTankUsage();    
+    double GetTankUsage();
+    unsigned long GetUpTime();
     void SetTankVolume(double Volume);
     void SetFlowRate(double FlowRate);
     bool Interlock();

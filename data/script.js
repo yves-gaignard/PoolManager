@@ -55,14 +55,15 @@ function refreshControlInfo() {
 		controls.push({ name:"Chlorine Pump", value: jsonResponse.OrpPmpS});
 		controls.push({ name:"pH PID", value: jsonResponse.pHWS});
 		controls.push({ name:"Orp PID", value: jsonResponse.ChlWS});
-		controls.push({ name:"Filtered", value: convertHMS(jsonResponse.FedDur)});
-		controls.push({ name:"Filtration", value: convertHMS(jsonResponse.DFDur)});
-		controls.push({ name:"Filtration start", value: Time_tToDate(jsonResponse.FSta).toLocaleTimeString('fr-FR')});
-		controls.push({ name:"Filtration end", value: Time_tToDate(jsonResponse.FEnd).toLocaleTimeString('fr-FR')});
-//		controls.push({ name:"Filtration start", value: Time_tToDate(jsonResponse.FSta).toISOString()});
-//		controls.push({ name:"Filtration end", value: Time_tToDate(jsonResponse.FEnd).toISOString()});
-		controls.push({ name:"pH uptime limit (min)", value: jsonResponse.pHUTL});
+		controls.push({ name:"Day Filtration Uptime", value: convertHMS(jsonResponse.DFUpt)});
+		controls.push({ name:"Day Filtration Target", value: convertHMS(jsonResponse.DFTrgt)});
+		controls.push({ name:"Period Filtration Uptime", value: convertHMS(jsonResponse.PFUpt)});
+		controls.push({ name:"Period Filtration Start", value: Time_tToDate(jsonResponse.PFSta).toLocaleTimeString('fr-FR')});
+		controls.push({ name:"Period Filtration End", value: Time_tToDate(jsonResponse.PFEnd).toLocaleTimeString('fr-FR')});
+		controls.push({ name:"pH- uptime limit (min)", value: jsonResponse.pHUTL});
 		controls.push({ name:"Chlorine uptime limit (min)", value: jsonResponse.OrpUTL});
+		controls.push({ name:"Previous Day Filtration Uptime", value: convertHMS(jsonResponse.PDFUpt)});
+		controls.push({ name:"Previous Day Filtration Target", value: convertHMS(jsonResponse.PDFTrgt)});
 	}
 
 	let headers = ['Control', 'Status'];
