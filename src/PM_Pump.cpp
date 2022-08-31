@@ -63,12 +63,15 @@ void PM_Pump::loop()
 //Switch pump ON if over time was not reached, tank is not empty and interlock is OK
 bool PM_Pump::Start()
 {
+  LOG_D(TAG, "digitalRead(%d)=%d",isrunningsensorpin,digitalRead(isrunningsensorpin));
   if((digitalRead(isrunningsensorpin) == PUMP_OFF) 
     && !UpTimeError
     && this->PM_Pump::TankLevel()
     && ((interlockpin == NO_INTERLOCK) || (digitalRead(interlockpin) == INTERLOCK_OK)))    //if((digitalRead(pumppin) == false))
   {
+    LOG_D(TAG, "start Pump digitalWrite(%d,%d)",pumppin, PUMP_ON);
     digitalWrite(pumppin, PUMP_ON);
+    LOG_D(TAG, "digitalRead(%d)=%d",isrunningsensorpin,digitalRead(isrunningsensorpin));
     StartTime = LastStartTime = millis(); 
     return true; 
   }
@@ -78,9 +81,12 @@ bool PM_Pump::Start()
 //Switch pump OFF
 bool PM_Pump::Stop()
 {
+  LOG_D(TAG, "digitalRead(%d)=%d",isrunningsensorpin,digitalRead(isrunningsensorpin));
   if(digitalRead(isrunningsensorpin) == PUMP_ON)
   {
+    LOG_D(TAG, "stop Pump digitalWrite(%d,%d)",pumppin, PUMP_OFF);
     digitalWrite(pumppin, PUMP_OFF);
+    LOG_D(TAG, "digitalRead(%d)=%d",isrunningsensorpin,digitalRead(isrunningsensorpin));
     UpTime += millis() - StartTime; 
     return true;
   }
@@ -185,7 +191,7 @@ bool PM_Pump::Interlock()
 //pump status
 bool PM_Pump::IsRunning()
 {
-  LOG_D(TAG, "digitalRead(isrunningsensorpin)=%d",digitalRead(isrunningsensorpin));
+  LOG_D(TAG, "digitalRead(%d)=%d",isrunningsensorpin,digitalRead(isrunningsensorpin));
   LOG_D(TAG, "PUMP_ON=%d", PUMP_ON);
   return (digitalRead(isrunningsensorpin) == PUMP_ON);
 }

@@ -46,13 +46,13 @@ function refreshControlInfo() {
 	xhttp.send();
 	if (xhttp.readyState == 4 && xhttp.status == 200) {
 		let jsonResponse = JSON.parse(xhttp.responseText);
-		controls.push({ name:"Auto Mode", value: jsonResponse.Auto});
-		controls.push({ name:"Winter Mode", value: jsonResponse.Winter});
-		controls.push({ name:"Filtration", value: jsonResponse.FPmpS});
-		controls.push({ name:"pH- regulation", value: jsonResponse.pHROO});
-		controls.push({ name:"pH- Pump", value: jsonResponse.pHPmpS});
-		controls.push({ name:"Orp regulation", value: jsonResponse.OrpROO});
-		controls.push({ name:"Chlorine Pump", value: jsonResponse.OrpPmpS});
+		controls.push({ name:"Auto Mode", value: (jsonResponse.Auto?"ON":"OFF")});
+		controls.push({ name:"Winter Mode", value: (jsonResponse.Winter?"ON":"OFF")});
+		controls.push({ name:"Filtration", value: (jsonResponse.FPmpS?"ON":"OFF")});
+		controls.push({ name:"pH regulation", value: (jsonResponse.pHROO?"ON":"OFF")});
+		controls.push({ name:"pH Pump", value: (jsonResponse.pHPmpS?"ON":"OFF")});
+		controls.push({ name:"Orp regulation", value: (jsonResponse.OrpROO?"ON":"OFF")});
+		controls.push({ name:"Chlorine Pump", value: (jsonResponse.OrpPmpS?"ON":"OFF")});
 		controls.push({ name:"pH PID", value: jsonResponse.pHWS});
 		controls.push({ name:"Orp PID", value: jsonResponse.ChlWS});
 		controls.push({ name:"Day Filtration Uptime", value: convertHMS(jsonResponse.DFUpt)});

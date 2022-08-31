@@ -81,11 +81,11 @@ void PM_Task_Pool_Manager(void *pvParameters)
     now = pftime::time(nullptr); // get current time
     tm_now = pftime::localtime(&now);
 
-    LOG_D(TAG, "PhPump.IsRunning() = %d", PhPump.IsRunning());
-    if(PhPump.IsRunning() ) {
-      pm_measures.PeriodFiltrationUptime = PhPump.GetUpTime();
+    LOG_V(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
+    if(FiltrationPump.IsRunning() ) {
+      pm_measures.PeriodFiltrationUptime = FiltrationPump.GetUpTime() / 1000; // milliseconds to seconds
       saveParam("PFiltrUptime", (unsigned long)pm_measures.PeriodFiltrationUptime);
-      LOG_D(TAG, "PeriodFiltrationUptime = %d", pm_measures.PeriodFiltrationUptime);
+      LOG_V(TAG, "PeriodFiltrationUptime = %d", pm_measures.PeriodFiltrationUptime);
     }
 
     
@@ -135,8 +135,8 @@ void PM_Task_Pool_Manager(void *pvParameters)
       PM_CalculateNextFiltrationPeriods();   
       if (pm_measures.AutoMode && (now >= pm_measures.PeriodFiltrationStartTime) && (now < pm_measures.PeriodFiltrationEndTime)) {
         if (FiltrationPump.Start() ) {
-        LOG_D(TAG, "Start filtration pump");
-        LOG_D(TAG, "PhPump.IsRunning() = %d", PhPump.IsRunning());
+        LOG_I(TAG, "Filtration pump started");
+        LOG_V(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
         } 
         else {
         LOG_E(TAG, "Cannot Start filtration pump !!!!");
@@ -144,8 +144,8 @@ void PM_Task_Pool_Manager(void *pvParameters)
       }
       else {
         if (FiltrationPump.Stop() ) {
-        LOG_D(TAG, "Stop filtration pump");
-        LOG_D(TAG, "PhPump.IsRunning() = %d", PhPump.IsRunning());
+        LOG_I(TAG, "Filtration pump stopped");
+        LOG_V(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
         }
         else {
         LOG_E(TAG, "Cannot Stop filtration pump !!!!");
@@ -165,7 +165,7 @@ void PM_Task_Pool_Manager(void *pvParameters)
         !PSIError && now >= pm_measures.PeriodFiltrationStartTime && now < pm_measures.PeriodFiltrationEndTime ) {
             if (FiltrationPump.Start() ) {
             LOG_I(TAG, " !!!!! --- Start Filtration pump as scheduled --- !!!!!");
-            LOG_D(TAG, "PhPump.IsRunning() = %d", PhPump.IsRunning());
+            LOG_V(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
             } 
             else {
             LOG_E(TAG, "Cannot Start filtration pump !!!!");
@@ -199,8 +199,8 @@ void PM_Task_Pool_Manager(void *pvParameters)
         SetPhPID(false);
         SetOrpPID(false);
         if (FiltrationPump.Stop() ) {
-            LOG_D(TAG, "Stop filtration pump");
-            LOG_D(TAG, "PhPump.IsRunning() = %d", PhPump.IsRunning());
+            LOG_I(TAG, "Filtration pump stopped");
+            LOG_V(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
         }
         else {
             LOG_E(TAG, "Cannot Stop filtration pump !!!!");
@@ -216,7 +216,14 @@ void PM_Task_Pool_Manager(void *pvParameters)
     //Outside regular filtration hours, start filtration in case of cold Air temperatures (<-2.0deg)
     if (!EmergencyStopFiltPump && pm_measures.AutoMode && !PSIError && !FiltrationPump.IsRunning() && ((now < pm_measures.PeriodFiltrationStartTime) || (now > pm_measures.PeriodFiltrationEndTime)) && (pm_measures.OutAirTemp < -2.0))
     {
-        FiltrationPump.Start();
+        if (FiltrationPump.Start() ) {
+          LOG_I(TAG, " !!!!! --- Start Filtration pump as outside temperature is < -2° --- !!!!!");
+          LOG_V(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
+        } 
+        else {
+          LOG_E(TAG, "Cannot Start filtration pump !!!!");
+        }
+
         if (pm_measures.PeriodFiltrationUptime != 0) {
             pm_measures.DayFiltrationUptime += pm_measures.PeriodFiltrationUptime;
             saveParam("DayFiltrUptime", (unsigned long)pm_measures.DayFiltrationUptime);
@@ -232,8 +239,8 @@ void PM_Task_Pool_Manager(void *pvParameters)
     //Outside regular filtration hours and if in AntiFreezeFiltering mode but Air temperature rose back above 2.0deg, stop filtration
     if (pm_measures.AutoMode && FiltrationPump.IsRunning() && ((now < pm_measures.PeriodFiltrationStartTime) || (now > pm_measures.PeriodFiltrationEndTime)) && AntiFreezeFiltering && (pm_measures.OutAirTemp > 2.0)) {
         if (FiltrationPump.Stop() ) {
-            LOG_D(TAG, "Stop filtration pump");
-            LOG_D(TAG, "PhPump.IsRunning() = %d", PhPump.IsRunning());
+            LOG_I(TAG, "Filtration pump stopped");
+            LOG_V(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
         }
         else {
             LOG_E(TAG, "Cannot Stop filtration pump !!!!");
@@ -250,8 +257,8 @@ void PM_Task_Pool_Manager(void *pvParameters)
     //If filtration pump has been running for over 45secs but pressure is still low, stop the filtration pump, something is wrong, set error flag
     if (FiltrationPump.IsRunning() && ((millis() - FiltrationPump.LastStartTime) > 45000) && (pm_measures.Pressure < pm_measures.PressureMedThreshold)) {
         if (FiltrationPump.Stop() ) {
-            LOG_D(TAG, "Stop filtration pump");
-            LOG_D(TAG, "PhPump.IsRunning() = %d", PhPump.IsRunning());
+            LOG_I(TAG, "Filtration pump stopped");
+            LOG_V(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
         }
         else {
             LOG_E(TAG, "Cannot Stop filtration pump !!!!");
@@ -269,8 +276,8 @@ void PM_Task_Pool_Manager(void *pvParameters)
     // Over-pressure error
     if (pm_measures.Pressure > pm_measures.PressureHighThreshold) {
         if (FiltrationPump.Stop() ) {
-            LOG_D(TAG, "Stop filtration pump");
-            LOG_D(TAG, "PhPump.IsRunning() = %d", PhPump.IsRunning());
+            LOG_I(TAG, "Filtration pump stopped");
+            LOG_V(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
         }
         else {
             LOG_E(TAG, "Cannot Stop filtration pump !!!!");

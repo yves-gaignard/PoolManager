@@ -376,10 +376,16 @@ void setup() {
   //LOG_D(TAG, "Start Time   : %d",pm_measures.PeriodFiltrationStartTime);
   //LOG_D(TAG, "End   Time   : %d",pm_measures.PeriodFiltrationEndTime);
 
+  if (pm_measures.PeriodFiltrationUptime != 0) {
+    //First store current uptime of the period of the filtration pump in case of reboot or restart of the controller
+    pm_measures.DayFiltrationUptime += pm_measures.PeriodFiltrationUptime;
+    saveParam("DayFiltrUptime", (unsigned long)pm_measures.DayFiltrationUptime);
+  }
+
   if (pm_measures.AutoMode && (now >= pm_measures.PeriodFiltrationStartTime) && (now < pm_measures.PeriodFiltrationEndTime)) {
     if (FiltrationPump.Start() ) {
-      LOG_D(TAG, "Start filtration pump");
-      LOG_D(TAG, "PhPump.IsRunning() = %d", PhPump.IsRunning());
+      LOG_D(TAG, "Filtration pump started");
+      LOG_D(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
     } 
     else {
       LOG_E(TAG, "Cannot Start filtration pump !!!!");
@@ -387,8 +393,8 @@ void setup() {
   }
   else {
     if (FiltrationPump.Stop() ) {
-      LOG_D(TAG, "Stop filtration pump");
-      LOG_D(TAG, "PhPump.IsRunning() = %d", PhPump.IsRunning());
+      LOG_D(TAG, "Filtration pump stopped");
+      LOG_D(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
     }
     else {
       LOG_E(TAG, "Cannot Stop filtration pump !!!!");
