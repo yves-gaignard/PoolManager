@@ -58,6 +58,9 @@ class PM_Log {
     void formatTimestampOn();
     void formatTimestampOff();
 
+    void setWebSerialOn();
+    void setWebSerialOff();
+
     void print(const char * tag, int const log_level, const char * fmt, ...);
     void print(const char * tag, int const log_level, const __FlashStringHelper * fmt, ...);
 private:
@@ -66,6 +69,7 @@ private:
     bool      _print_log_label;
     bool      _format_timestamp_on;
     int       _log_level;
+    bool      _is_web_serial;
     Stream *  _log_output_stream;
     std::map<std::string, int> _tags;   // unordered map of tags and log_level
 

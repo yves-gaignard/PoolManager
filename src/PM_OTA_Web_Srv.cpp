@@ -17,13 +17,17 @@
 #include "PM_Pool_Manager.h"
 #include "PM_Parameters.h"      // Pool manager parameters
 #include "PM_OTA_Web_Srv.h"
+#include <WebSerialLite.h>         // Library to reroute Serial on webserver
 
-AsyncWebServer OTAServer(80);
+AsyncWebServer OTAServer(PM_WebServerPort);
+
+// forward declaration
+void PM_OTA_Web_Srv_recvMsg(uint8_t *data, size_t len);
 
 void PM_OTA_Web_Srv_getMeasures(AsyncWebServerRequest *request);
 
 // Web server setup and start
-void PM_OTA_Web_Srv_setup(void) {
+void PM_OTA_Web_Srv_setup(boolean isWebSerial) {
 
   //----------------------------------------------------SPIFFS
   if(!SPIFFS.begin()) {
@@ -55,7 +59,15 @@ void PM_OTA_Web_Srv_setup(void) {
     request->send(SPIFFS, "/script.js", "text/javascript");
   });
   
+  if (isWebSerial) {
+    // WebSerial is accessible at "<IP Address>/webserial" in browser
+    WebSerial.begin(&OTAServer);
+    // Attach Message Callback
+    WebSerial.onMessage(PM_OTA_Web_Srv_recvMsg);
 
+    Log.setWebSerialOn();
+  }
+  
   AsyncElegantOTA.begin(&OTAServer);    // Start ElegantOTA
   OTAServer.begin();
   LOG_I(TAG, "HTTP server started");
@@ -154,3 +166,14 @@ void PM_OTA_Web_Srv_getMeasures(AsyncWebServerRequest *request) {
   LOG_V(TAG, "End API Get measuressend");
 }
 
+// =================================================================================================
+// Message callback of WebSerial 
+// =================================================================================================
+void PM_OTA_Web_Srv_recvMsg(uint8_t *data, size_t len){
+  WebSerial.println("Received Data...");
+  String d = "";
+  for(int i=0; i < len; i++){
+    d += char(data[i]);
+  }
+  WebSerial.println(d);
+}

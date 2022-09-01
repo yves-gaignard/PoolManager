@@ -13,7 +13,7 @@ void PM_OTA_Web_Srv_notFound(AsyncWebServerRequest *request);
 void PM_OTA_Web_Srv_sendWelcome(AsyncWebServerRequest *request);
 
 // Web server setup and start
-void PM_OTA_Web_Srv_setup(void);
+void PM_OTA_Web_Srv_setup(boolean isWebSerial);
 
 // Web server in loop 
 void PM_OTA_Web_Srv_loop();

@@ -277,8 +277,8 @@ void setup() {
   PM_Display_init();
 
   // start Web Server
-  PM_OTA_Web_Srv_setup();
-  
+  PM_OTA_Web_Srv_setup(IS_WEB_SERIAL_ACTIVATED);
+
   // Verify the configuration of pool manager
   PM_Error Error = Pool_Configuration.CheckFiltrationTimeAbaqus();
   int ErrorNumber = Error.getErrorNumber();
@@ -380,6 +380,8 @@ void setup() {
     //First store current uptime of the period of the filtration pump in case of reboot or restart of the controller
     pm_measures.DayFiltrationUptime += pm_measures.PeriodFiltrationUptime;
     saveParam("DayFiltrUptime", (unsigned long)pm_measures.DayFiltrationUptime);
+    pm_measures.PeriodFiltrationUptime = 0;
+    saveParam("PFiltrUptime", (unsigned long)pm_measures.PeriodFiltrationUptime);
   }
 
   if (pm_measures.AutoMode && (now >= pm_measures.PeriodFiltrationStartTime) && (now < pm_measures.PeriodFiltrationEndTime)) {
@@ -1010,3 +1012,4 @@ void PM_CalculateNextFiltrationPeriods() {
   LOG_D(TAG, "- next start time: %04d/%02d/%02d %02d:%02d:%02d (%u)", tm_NextStartTime.tm_year+1900, tm_NextStartTime.tm_mon+1, tm_NextStartTime.tm_mday, tm_NextStartTime.tm_hour, tm_NextStartTime.tm_min, tm_NextStartTime.tm_sec, pm_measures.PeriodFiltrationStartTime);
   LOG_D(TAG, "- next end time  : %04d/%02d/%02d %02d:%02d:%02d (%u)", tm_NextEndTime.tm_year+1900, tm_NextEndTime.tm_mon+1, tm_NextEndTime.tm_mday, tm_NextEndTime.tm_hour, tm_NextEndTime.tm_min, tm_NextEndTime.tm_sec, pm_measures.PeriodFiltrationEndTime);
 }
+

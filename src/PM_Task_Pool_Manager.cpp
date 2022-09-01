@@ -102,9 +102,11 @@ void PM_Task_Pool_Manager(void *pvParameters)
       //First store current uptime of the period of the filtration pump in Eeprom
       pm_measures.DayFiltrationUptime += pm_measures.PeriodFiltrationUptime;
       saveParam("DayFiltrUptime", (unsigned long)pm_measures.DayFiltrationUptime);
+      LOG_I(TAG, "PeriodFiltrationUptime = %d", pm_measures.PeriodFiltrationUptime);
       pm_measures.PeriodFiltrationUptime = 0;
       saveParam("PFiltrUptime", (unsigned long)pm_measures.PeriodFiltrationUptime);
-
+      LOG_I(TAG, "PeriodFiltrationUptime = %d", pm_measures.PeriodFiltrationUptime);
+      
       //Save current uptime and target filtration of the day in the previous day info
       pm_measures.PreviousDayFiltrationUptime= pm_measures.DayFiltrationUptime;
       saveParam("PDayFiltrUptime", (unsigned long)pm_measures.PreviousDayFiltrationUptime);
@@ -128,8 +130,10 @@ void PM_Task_Pool_Manager(void *pvParameters)
       // reset the filtration time and already filtered time for this new day
       pm_measures.DayFiltrationTarget = 0;
       saveParam("DayFiltrTarget", (unsigned long)pm_measures.DayFiltrationTarget);
+      LOG_I(TAG, "DayFiltrTarget = %d", pm_measures.DayFiltrationTarget);
       pm_measures.DayFiltrationUptime = 0;
       saveParam("DayFiltrUptime", (unsigned long)pm_measures.DayFiltrationUptime);
+      LOG_I(TAG, "DayFiltrUptime = %d", pm_measures.DayFiltrationUptime);
       
       // Compute the new periods of filtration for this new day
       PM_CalculateNextFiltrationPeriods();   
@@ -157,6 +161,7 @@ void PM_Task_Pool_Manager(void *pvParameters)
       if (DoneForTheDay) {
         DoneForTheDay = false;
         LOG_I(TAG, " !!!!! --- It is 01am --- End of new day computation --- !!!!!");
+        LOG_I(TAG, "DayFiltrUptime = %d", pm_measures.DayFiltrationUptime);
       }
     }
 
@@ -165,6 +170,7 @@ void PM_Task_Pool_Manager(void *pvParameters)
         !PSIError && now >= pm_measures.PeriodFiltrationStartTime && now < pm_measures.PeriodFiltrationEndTime ) {
             if (FiltrationPump.Start() ) {
             LOG_I(TAG, " !!!!! --- Start Filtration pump as scheduled --- !!!!!");
+            LOG_I(TAG, "DayFiltrUptime = %d", pm_measures.DayFiltrationUptime);
             LOG_V(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
             } 
             else {

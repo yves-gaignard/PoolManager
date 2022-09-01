@@ -154,10 +154,15 @@ const char PM_TimeZone[60] = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; // 
 #define LCD_DISPLAY_TIMEOUT 30
 
 // duration of a screen display before switching to the next time (in seconds)
+//-----------------------------------------------------------------------------
 #define LCD_DISPLAY_SCREEN_DURATION 5
 
-// Precision of 
-//-----------------
+// Precision of temperature sensors
+//----------------------------------
 #define TEMPERATURE_PRECISION 10
+
+// Is the web serial activated
+// ----------------------------
+#define IS_WEB_SERIAL_ACTIVATED true
 
 #endif
