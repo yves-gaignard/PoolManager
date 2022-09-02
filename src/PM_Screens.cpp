@@ -4,7 +4,7 @@
   Pool manager screens management
 */
 
-#define TAG "PM_Screen"
+#define TAG "PM_Screens"
 
 // Standard library definitions
 #include <Arduino.h>

@@ -68,6 +68,25 @@ void PM_Log::setTag(const char * tag, const int log_level) {
   }
 }
 
+void PM_Log::setTag(const char * tag, const char * log_level) {
+  String _log_level = log_level;
+  if (_log_level.equalsIgnoreCase("error")) {
+    setTag(tag, LOG_ERROR);
+  }
+  else if (_log_level.equalsIgnoreCase("warning")) {
+    setTag(tag, LOG_WARNING);
+  }
+  else if (_log_level.equalsIgnoreCase("info")) {
+    setTag(tag, LOG_INFO);
+  }
+  else if (_log_level.equalsIgnoreCase("debug")) {
+    setTag(tag, LOG_DEBUG);
+  }
+  else if (_log_level.equalsIgnoreCase("verbose")) {
+    setTag(tag, LOG_VERBOSE);
+  }
+}
+
 void PM_Log::newlineOn() {
   _newline_on = true;
 }

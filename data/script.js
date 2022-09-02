@@ -26,7 +26,7 @@ function refreshGaugeData() {
 			document.getElementById("gaugePressure"  ).setAttribute("data-value", jsonResponse.PSI);
 			document.getElementById("gaugePhTankFill").setAttribute("data-value", jsonResponse.pHFill);
 			document.getElementById("gaugeChlorineTankFill").setAttribute("data-value", jsonResponse.ChFill);
-			let FiltrationTimeRatio=((jsonResponse.DFUpt + jsonResponse.PFUpt)/ jsonResponse.DFTrgt *100);
+			let FiltrationTimeRatio=( jsonResponse.DFUpt / jsonResponse.DFTrgt *100);
 			document.getElementById("gaugeFiltration").setAttribute("data-value", FiltrationTimeRatio);
 		}
 	};
@@ -57,13 +57,14 @@ function refreshControlInfo() {
 		controls.push({ name:"Orp PID",                        value: jsonResponse.ChlWS});
 		controls.push({ name:"Day Filtration Uptime",          value: convertHMS(jsonResponse.DFUpt)});
 		controls.push({ name:"Day Filtration Target",          value: convertHMS(jsonResponse.DFTrgt)});
-		controls.push({ name:"Period Filtration Uptime",       value: convertHMS(jsonResponse.PFUpt)});
 		controls.push({ name:"Period Filtration Start",        value: Time_tToDate(jsonResponse.PFSta).toLocaleTimeString('fr-FR')});
 		controls.push({ name:"Period Filtration End",          value: Time_tToDate(jsonResponse.PFEnd).toLocaleTimeString('fr-FR')});
 		controls.push({ name:"pH- uptime limit (min)",         value: jsonResponse.pHUTL});
 		controls.push({ name:"Chlorine uptime limit (min)",    value: jsonResponse.OrpUTL});
 		controls.push({ name:"Previous Day Filtration Uptime", value: convertHMS(jsonResponse.PDFUpt)});
 		controls.push({ name:"Previous Day Filtration Target", value: convertHMS(jsonResponse.PDFTrgt)});
+		controls.push({ name:"Reboot Number",                  value: jsonResponse.Reboot});
+		controls.push({ name:"Last Reboot Date",               value: Time_tToDate(jsonResponse.RTime).toLocaleTimeString('fr-FR')});
 	}
 
 	let headers = ['Control', 'Status'];

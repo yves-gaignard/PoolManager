@@ -17,6 +17,7 @@
 #include "PM_Pool_Manager.h"
 #include "PM_Parameters.h"      // Pool manager parameters
 #include "PM_OTA_Web_Srv.h"
+#include "PM_Utils.h"
 #include <WebSerialLite.h>         // Library to reroute Serial on webserver
 
 AsyncWebServer OTAServer(PM_WebServerPort);
@@ -99,9 +100,11 @@ void PM_OTA_Web_Srv_getMeasures(AsyncWebServerRequest *request) {
   LOG_V(TAG, "Start API Get measuressend");
   
   root["Vers"]   = pm_measures.PMVersion;                    // firmware revision
+  root["Reboot"] = pm_measures.RebootNumber;
+  root["RTime"]  = pm_measures.LastRebootTimestamp;
+  
   root["DFUpt"]  = pm_measures.DayFiltrationUptime;          // Filtration Duration since the begin of the day
   root["DFTrgt"] = pm_measures.DayFiltrationTarget;          // Maximum Filtration duration for the whole day
-  root["PFUpt"]  = pm_measures.PeriodFiltrationUptime;       // Filtration Duration since the begin of the period
   root["PFSta"]  = pm_measures.PeriodFiltrationStartTime;    // Next period start time of the filtration
   root["PFEnd"]  = pm_measures.PeriodFiltrationEndTime;      // Next period end time of the filtration
   root["PDFUpt"] = pm_measures.PreviousDayFiltrationUptime;  // Filtration Duration of the previous day
@@ -172,8 +175,38 @@ void PM_OTA_Web_Srv_getMeasures(AsyncWebServerRequest *request) {
 void PM_OTA_Web_Srv_recvMsg(uint8_t *data, size_t len){
   WebSerial.println("Received Data...");
   String d = "";
+  boolean help = false;
   for(int i=0; i < len; i++){
     d += char(data[i]);
   }
-  WebSerial.println(d);
+  std::vector<String> words = ExtractWordsFromString(d);
+  if (words.size() > 0 ) {
+    //LOG_D(TAG, "words.size: %d", words.size());
+    //for (int i=0; i<words.size(); i++) {
+    //  LOG_D(TAG, "words[%d]: %s", i, words[i].c_str());
+    //}
+    if (words[0].equalsIgnoreCase("log")) { 
+      //LOG_D(TAG, "words[0] = %s", words[0].c_str());
+      if (words.size() == 3 ) { 
+        Log.setTag(words[2].c_str(), words[1].c_str());
+        WebSerial.printf ("Command done: %s\n", d.c_str()); 
+      }
+      else { 
+        WebSerial.printf ("Unknown log command: %s\n", d.c_str()); 
+        help =true;
+      }
+    } 
+    else {
+      WebSerial.printf ("Unknown command: %s", d.c_str());
+      help =true;
+    }
+  }
+  else {
+    help=true;
+  }
+
+  if (help) {
+    WebSerial.println("Command help:");
+    WebSerial.println("- log LEVEL TAG     # LEVEL = ERROR, WARNING, INFO, DEBUG or VERBOSE    # TAG = name of the class");
+  }
 }

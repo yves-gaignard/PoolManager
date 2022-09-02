@@ -24,13 +24,13 @@ PM_Pump::PM_Pump(uint8_t PumpPin, uint8_t IsRunningSensorPin, uint8_t TankLevelP
   isrunningsensorpin = IsRunningSensorPin;
   tanklevelpin = TankLevelPin;
   interlockpin = Interlockpin;
-  flowrate = FlowRate; //in Liters per hour
-  tankvolume = TankVolume; //in Liters
-  tankfill = TankFill; // in percent
-  StartTime = 0;
-  LastStartTime = 0;
-  StopTime = 0;
-  UpTime = 0;        
+  flowrate = FlowRate;           // (in Liters per hour)
+  tankvolume = TankVolume;       // (in Liters)
+  tankfill = TankFill;           // (in percent)
+  StartTime = 0;                 // (in ms), timestamp of the last loop time
+  LastStartTime = 0;             // (in ms), timestamp of the last pump start
+  StopTime = 0;                  // (in ms), not sure of its usage
+  UpTime = 0;                    // (in ms), millis since the last start of the pump     
   UpTimeError = 0;
   MaxUpTime = DefaultMaxUpTime;
   CurrMaxUpTime = MaxUpTime;
@@ -91,11 +91,6 @@ bool PM_Pump::Stop()
     return true;
   }
   else return false;
-}
-
-//Provide the UpTime of the pump since last starting time
-unsigned long PM_Pump::GetUpTime() {
-  return UpTime;
 }
 
 //Reset the tracking of running time

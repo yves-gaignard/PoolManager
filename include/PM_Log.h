@@ -45,6 +45,7 @@ class PM_Log {
     void setLogOutputStream(Stream * stream);
 
     void setTag(const char * tag, const int log_level);
+    void setTag(const char * tag, const char * log_level);
 
     void timestampOn();
     void timestampOff();

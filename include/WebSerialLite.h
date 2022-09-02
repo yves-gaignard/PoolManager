@@ -45,7 +45,6 @@ class WebSerialClass {
   size_t printf(const char *format, ...);
 
   // Print
-
   void print(String m = "");
 
   void print(const char *m);

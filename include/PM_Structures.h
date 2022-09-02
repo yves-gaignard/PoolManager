@@ -50,6 +50,7 @@ struct PM_SwimmingPoolMeasures {
   bool    pHMinusPumpState;               // State of the pH- pump (true, false)
   bool    ChlorinePumpState;              // State of the Chlorine pump (true, false)
   uint8_t DelayPIDs;                      // Delay of starting PID computation after the start of a filtration pump (in minutes)
+  uint8_t RebootNumber;                   // Number of reboot
   float   InAirTemp;                      // Inside air temperature in °C
   float   WaterTemp;                      // Water temperature in °C of the swimming pool
   float   OutAirTemp;                     // Outside air temperature in °C
@@ -78,11 +79,11 @@ struct PM_SwimmingPoolMeasures {
   double  OrpCalibCoeffs1;
   time_t  DayFiltrationUptime;            // Filtration Duration since the begin of the day
   time_t  DayFiltrationTarget;            // Target Filtration duration for the whole day
-  time_t  PeriodFiltrationUptime;         // Filtration Duration since the begin of the period
   time_t  PeriodFiltrationStartTime;      // Next period start time of the filtration
   time_t  PeriodFiltrationEndTime;        // Next period end time of the filtration
   time_t  PreviousDayFiltrationUptime;    // Filtration Duration of the previous day
   time_t  PreviousDayFiltrationTarget;    // Target Filtration duration of the previous day
+  time_t  LastRebootTimestamp;            // Timestamp of the last reboot
   float   pHMinusFlowRate;                // Flow rate of pH Minus liquid injected (liter per hour)
   float   ChlorineFlowRate;               // Flow rate of Chlorine liquid injected (liter per hour)
   float   pHMinusVolume;                  // Volume of pH Minus liquid since the last complete fill of the container

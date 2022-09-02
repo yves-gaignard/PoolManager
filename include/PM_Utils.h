@@ -56,6 +56,27 @@ static long hexstr2n( const std::string str) {
     }
 }
 
-// Convert a time_t into hh:mm:ss
+static std::vector<String> ExtractWordsFromString(const String& Text) {
+  std::vector<String> words;
+  String pushBackVar;
+  int start_sub=0;
+  int i;
+  for (i=0;i<Text.length();i++)
+  {
+    if(Text[i]==32)
+    {
+      if (i > start_sub) {
+        pushBackVar = Text.substring(start_sub, i);
+        words.push_back(pushBackVar);
+      }
+      start_sub=i+1;
+    }  
+  }
+  if (start_sub<Text.length()) {
+    pushBackVar = Text.substring(start_sub, Text.length());
+    words.push_back(pushBackVar);
+  }
+  return words;
+}
 
 #endif
