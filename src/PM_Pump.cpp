@@ -1,5 +1,10 @@
+
+#define TAG "PM_Pump"
+
 #include <Arduino.h>
 #include "PM_Pump.h"
+
+#include "PM_Log.h"
 
 //Constructor
 //PumpPin is the Arduino relay output pin number to be switched to start/stop the pump
@@ -19,13 +24,13 @@ PM_Pump::PM_Pump(uint8_t PumpPin, uint8_t IsRunningSensorPin, uint8_t TankLevelP
   isrunningsensorpin = IsRunningSensorPin;
   tanklevelpin = TankLevelPin;
   interlockpin = Interlockpin;
-  flowrate = FlowRate; //in Liters per hour
-  tankvolume = TankVolume; //in Liters
-  tankfill = TankFill; // in percent
-  StartTime = 0;
-  LastStartTime = 0;
-  StopTime = 0;
-  UpTime = 0;        
+  flowrate = FlowRate;           // (in Liters per hour)
+  tankvolume = TankVolume;       // (in Liters)
+  tankfill = TankFill;           // (in percent)
+  StartTime = 0;                 // (in ms), timestamp of the last loop time
+  LastStartTime = 0;             // (in ms), timestamp of the last pump start
+  StopTime = 0;                  // (in ms), not sure of its usage
+  UpTime = 0;                    // (in ms), millis since the last start of the pump     
   UpTimeError = 0;
   MaxUpTime = DefaultMaxUpTime;
   CurrMaxUpTime = MaxUpTime;
@@ -58,12 +63,15 @@ void PM_Pump::loop()
 //Switch pump ON if over time was not reached, tank is not empty and interlock is OK
 bool PM_Pump::Start()
 {
+  //LOG_D(TAG, "digitalRead(%d)=%d",isrunningsensorpin,digitalRead(isrunningsensorpin));
   if((digitalRead(isrunningsensorpin) == PUMP_OFF) 
     && !UpTimeError
     && this->PM_Pump::TankLevel()
     && ((interlockpin == NO_INTERLOCK) || (digitalRead(interlockpin) == INTERLOCK_OK)))    //if((digitalRead(pumppin) == false))
   {
+    //LOG_D(TAG, "start Pump digitalWrite(%d,%d)",pumppin, PUMP_ON);
     digitalWrite(pumppin, PUMP_ON);
+    //LOG_D(TAG, "digitalRead(%d)=%d",isrunningsensorpin,digitalRead(isrunningsensorpin));
     StartTime = LastStartTime = millis(); 
     return true; 
   }
@@ -73,9 +81,12 @@ bool PM_Pump::Start()
 //Switch pump OFF
 bool PM_Pump::Stop()
 {
+  //LOG_D(TAG, "digitalRead(%d)=%d",isrunningsensorpin,digitalRead(isrunningsensorpin));
   if(digitalRead(isrunningsensorpin) == PUMP_ON)
   {
+    //LOG_D(TAG, "stop Pump digitalWrite(%d,%d)",pumppin, PUMP_OFF);
     digitalWrite(pumppin, PUMP_OFF);
+    //LOG_D(TAG, "digitalRead(%d)=%d",isrunningsensorpin,digitalRead(isrunningsensorpin));
     UpTime += millis() - StartTime; 
     return true;
   }
@@ -175,5 +186,7 @@ bool PM_Pump::Interlock()
 //pump status
 bool PM_Pump::IsRunning()
 {
+  //LOG_D(TAG, "digitalRead(%d)=%d",isrunningsensorpin,digitalRead(isrunningsensorpin));
+  //LOG_D(TAG, "PUMP_ON=%d", PUMP_ON);
   return (digitalRead(isrunningsensorpin) == PUMP_ON);
 }

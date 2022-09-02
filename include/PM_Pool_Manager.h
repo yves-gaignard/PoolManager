@@ -13,6 +13,8 @@
 #include <RTClib.h>
 #include <PID_v1.h>             // Library for PID controller (Proportional–Integral–Derivative controller)
 #include <ADS1115.h>
+#include <Preferences.h>
+
 #include "PM_Log.h"
 #include "PM_LCD.h"
 #include "PM_Structures.h"
@@ -24,6 +26,8 @@
 extern PM_LCD lcd;
 extern PM_Screens screens;
 
+// NVS Non Volatile SRAM (eqv. EEPROM)
+extern Preferences nvs;   
 extern PM_SwimmingPoolMeasures     pm_measures;
 
 //PIDs instances
@@ -59,14 +63,24 @@ extern void PM_Display_screen_2();
 
 extern void PM_CalculateNextFiltrationPeriods();
 
+extern void PM_Write_Filtration_UpTime();
+extern void PM_FiltrationPumpStart();
+extern void PM_FiltrationPumpStop();
+
 extern void lockI2C();
 extern void unlockI2C();
 
-extern bool saveParam(const char* key, uint8_t val);
-extern bool saveParam(const char* key, bool val);
-extern bool saveParam(const char* key, unsigned long val);
-extern bool saveParam(const char* key, double val);
-extern bool saveParam(const char* key, float val);
+extern bool PM_NVS_Init();
+// Load measures from NVS
+extern bool PM_NVS_Load();
+// Save all measures to NVS
+extern bool PM_NVS_Save();
+// functions to save any type of parameter (4 overloads with same name but different arguments)
+extern bool PM_NVS_saveParam(const char* key, uint8_t val);
+extern bool PM_NVS_saveParam(const char* key, bool val);
+extern bool PM_NVS_saveParam(const char* key, unsigned long val);
+extern bool PM_NVS_saveParam(const char* key, double val);
+extern bool PM_NVS_saveParam(const char* key, float val);
 
 extern int  freeRam();
 extern unsigned stack_hwm();

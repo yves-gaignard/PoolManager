@@ -21,10 +21,9 @@
 void ProcessCommand(char*);
 void StartTime(void);
 void readLocalTime(void);
-bool saveParam(const char*,uint8_t );
-bool saveParam(const char*,bool );
-bool saveParam(const char*,unsigned long );
-bool saveParam(const char*,double );
+void PM_Write_Filtration_UpTime();
+void PM_FiltrationPumpStart();
+void PM_FiltrationPumpStop();
 void SetPhPID(bool);
 void SetOrpPID(bool);
 void mqttErrorPublish(const char*);
@@ -32,11 +31,16 @@ void UpdateTFT(void);
 void stack_mon(UBaseType_t&);
 void Send_IFTTTNotif(void);
 
+
+unsigned long LastWrittenUpTime = 0;
+int NbLoop =0;
+int MaxLoopBeforeWrite =60;
+
+
 void PM_Task_Pool_Manager(void *pvParameters)
 {
   bool DoneForTheDay = false;                     // Reset actions done once per day
-  bool d_calc = false;                            // Filtration duration computed
-
+  
   bool AntiFreezeFiltering = false;               // Filtration anti freeze mode
   bool EmergencyStopFiltPump = false;             // flag will be (re)set by double-tapp button
   bool PSIError = false;                          // Water pressure OK
@@ -60,130 +64,157 @@ void PM_Task_Pool_Manager(void *pvParameters)
   tm * tm_now;
   time_t now;
 
+  LastWrittenUpTime = FiltrationPump.StartTime;
+
   for(;;)
   {  
+    // count the loop number
+    NbLoop ++; 
+
     // reset watchdog
     esp_task_wdt_reset();
-
-    #ifdef CHRONO
-    td = millis();
-    #endif    
 
     // Handle OTA update
     //ArduinoOTA.handle();
 
-    //update pumps
+    //update pump information
     FiltrationPump.loop();
     PhPump.loop();
     ChlPump.loop();
 
+    PM_Write_Filtration_UpTime();
+
     //reset time counters at midnight and send sync request to time server
     now = pftime::time(nullptr); // get current time
     tm_now = pftime::localtime(&now);
-    
+
     if (tm_now->tm_hour == 0 && !DoneForTheDay)
     {
       LOG_I(TAG, " !!!!! --- Midnight --- New day parameter computation --- !!!!!");
       
       //First store current Chl and Acid consumptions of the day in Eeprom
-      pm_measures.pHMinusTankFill = PhPump.GetTankFill();
+      pm_measures.pHMinusTankFill  = PhPump.GetTankFill();
       pm_measures.ChlorineTankFill = ChlPump.GetTankFill();
-      saveParam("pHMinusTankFill", pm_measures.pHMinusTankFill);
-      saveParam("ChlorinTankFill", pm_measures.ChlorineTankFill);
+      PM_NVS_saveParam("pHMinusTankFill", pm_measures.pHMinusTankFill);
+      PM_NVS_saveParam("ChlorinTankFill", pm_measures.ChlorineTankFill);
 
+      //First store current uptime of the period of the filtration pump in Eeprom
+      NbLoop += MaxLoopBeforeWrite; // force to write
+      PM_Write_Filtration_UpTime();
+     
+      //Save current uptime and target filtration of the day in the previous day info
+      pm_measures.PreviousDayFiltrationUptime= pm_measures.DayFiltrationUptime;
+      PM_NVS_saveParam("PDayFiltrUptime", (unsigned long)pm_measures.PreviousDayFiltrationUptime);
+      pm_measures.PreviousDayFiltrationTarget= pm_measures.DayFiltrationTarget;
+      PM_NVS_saveParam("PDayFiltrTarget", (unsigned long)pm_measures.PreviousDayFiltrationTarget);
+  
+      // reset all day's parameters
       FiltrationPump.ResetUpTime();
+      LastWrittenUpTime=FiltrationPump.UpTime,
+
       PhPump.ResetUpTime();
       PhPump.SetTankFill(pm_measures.pHMinusTankFill);
       ChlPump.ResetUpTime();
       ChlPump.SetTankFill(pm_measures.ChlorineTankFill);
 
       EmergencyStopFiltPump = false;
-      d_calc = false;
       DoneForTheDay = true;
         
       // update the time from NTP server
       PM_Time_Mngt_initialize_time();
 
       // reset the filtration time and already filtered time for this new day
-      pm_measures.DayFiltrationDuration = 0;
-      saveParam("DayFiltDuration", (unsigned long)pm_measures.DayFiltrationDuration);
-      pm_measures.FilteredDuration = 0;
-      saveParam("FiltDuration", (unsigned long)pm_measures.FilteredDuration);
+      pm_measures.DayFiltrationTarget = 0;
+      PM_NVS_saveParam("DayFiltrTarget", (unsigned long)pm_measures.DayFiltrationTarget);
+      LOG_I(TAG, "DayFiltrTarget = %d", pm_measures.DayFiltrationTarget);
+      pm_measures.DayFiltrationUptime = 0;
+      PM_NVS_saveParam("DayFiltrUptime", (unsigned long)pm_measures.DayFiltrationUptime);
+      LOG_I(TAG, "DayFiltrUptime = %d", pm_measures.DayFiltrationUptime);
       
       // Compute the new periods of filtration for this new day
       PM_CalculateNextFiltrationPeriods();   
-      if (pm_measures.AutoMode && (now >= pm_measures.FiltrationStartTime) && (now < pm_measures.FiltrationEndTime)) {
-        FiltrationPump.Start();
-        LOG_I(TAG, "Start filtration pump");
+      if (pm_measures.AutoMode && (now >= pm_measures.PeriodFiltrationStartTime) && (now < pm_measures.PeriodFiltrationEndTime)) {
+        PM_FiltrationPumpStart();
       }
       else {
-        FiltrationPump.Stop();
-        LOG_I(TAG, "Stop filtration pump");
+        PM_FiltrationPumpStop();
       } 
-      d_calc = true;
     }
     else if(tm_now->tm_hour == 1) {
-      DoneForTheDay = false;
-      LOG_I(TAG, " !!!!! --- It is 01am --- End of new day computation --- !!!!!");
+      if (DoneForTheDay) {
+        DoneForTheDay = false;
+        LOG_I(TAG, " !!!!! --- It is 01am --- End of new day computation --- !!!!!");
+        LOG_I(TAG, "DayFiltrUptime = %d", pm_measures.DayFiltrationUptime);
+      }
     }
 
     //start filtration pump as scheduled
     if (!EmergencyStopFiltPump && !FiltrationPump.IsRunning() && pm_measures.AutoMode &&
-        !PSIError && now >= pm_measures.FiltrationStartTime && now < pm_measures.FiltrationEndTime ) {
-            FiltrationPump.Start();
-            LOG_I(TAG, " !!!!! --- Start Filtration --- !!!!!");
-        }
+        !PSIError && now >= pm_measures.PeriodFiltrationStartTime && now < pm_measures.PeriodFiltrationEndTime ) {
+      PM_FiltrationPumpStart();
+    }
     
     // start PIDs with delay after FiltrationStart in order to let the readings stabilize
     // start inhibited if water temperature below threshold and/or in winter mode
     if (FiltrationPump.IsRunning() && pm_measures.AutoMode && !pm_measures.WinterMode && !pHPID.GetMode() &&
         ((millis() - FiltrationPump.LastStartTime) / 1000 / 60 >= pm_measures.DelayPIDs) &&
-        (now >= pm_measures.FiltrationStartTime) && (now < pm_measures.FiltrationEndTime) &&
-        pm_measures.WaterTemp >= pm_measures.WaterTempLowThreshold)
-    {
-        //Start PIDs
-        SetPhPID(true);
-        SetOrpPID(true);
-        LOG_I(TAG, " !!!!! --- Start pH and Orp PID --- !!!!!");
+        (now >= pm_measures.PeriodFiltrationStartTime) && (now < pm_measures.PeriodFiltrationEndTime) &&
+        pm_measures.WaterTemp >= pm_measures.WaterTempLowThreshold) {
+      //Start PIDs
+      SetPhPID(true);
+      SetOrpPID(true);
+      LOG_I(TAG, " !!!!! --- Start pH and Orp PID as scheduled --- !!!!!");
     }
 
     //stop filtration pump and PIDs as scheduled unless we are in AntiFreeze mode
-    if (pm_measures.AutoMode && FiltrationPump.IsRunning() && !AntiFreezeFiltering && (now >= pm_measures.FiltrationEndTime || now < pm_measures.FiltrationStartTime))
+    if (pm_measures.AutoMode && FiltrationPump.IsRunning() && !AntiFreezeFiltering && (now >= pm_measures.PeriodFiltrationEndTime || now < pm_measures.PeriodFiltrationStartTime))
     {
+        LOG_I(TAG, " !!!!! --- Stop Filtration, pH and Orp PID --- !!!!!");
         SetPhPID(false);
         SetOrpPID(false);
-        FiltrationPump.Stop();
-        LOG_I(TAG, " !!!!! --- Stop Filtration, pH and Orp PID --- !!!!!");
+
+        NbLoop += MaxLoopBeforeWrite; // force to write
+        PM_Write_Filtration_UpTime();
+        PM_FiltrationPumpStop();
     }
 
     //Outside regular filtration hours, start filtration in case of cold Air temperatures (<-2.0deg)
-    if (!EmergencyStopFiltPump && pm_measures.AutoMode && !PSIError && !FiltrationPump.IsRunning() && ((now < pm_measures.FiltrationStartTime) || (now > pm_measures.FiltrationEndTime)) && (pm_measures.OutAirTemp < -2.0))
+    if (!EmergencyStopFiltPump && pm_measures.AutoMode && !PSIError && !FiltrationPump.IsRunning() && ((now < pm_measures.PeriodFiltrationStartTime) || (now > pm_measures.PeriodFiltrationEndTime)) && (pm_measures.OutAirTemp < -2.0))
     {
-        FiltrationPump.Start();
+        LOG_I(TAG, " !!!!! --- Start antifreeze Filtration pump as outside temperature is < -2° --- !!!!!");
+        PM_FiltrationPumpStart();
         AntiFreezeFiltering = true;
-        LOG_I(TAG, " !!!!! --- Start filtration due to antifreeze --- !!!!!");
     }
 
     //Outside regular filtration hours and if in AntiFreezeFiltering mode but Air temperature rose back above 2.0deg, stop filtration
-    if (pm_measures.AutoMode && FiltrationPump.IsRunning() && ((now < pm_measures.FiltrationStartTime) || (now > pm_measures.FiltrationEndTime)) && AntiFreezeFiltering && (pm_measures.OutAirTemp > 2.0)) {
-        FiltrationPump.Stop();
-        AntiFreezeFiltering = false;
+    if (pm_measures.AutoMode && FiltrationPump.IsRunning() && ((now < pm_measures.PeriodFiltrationStartTime) || (now > pm_measures.PeriodFiltrationEndTime)) && AntiFreezeFiltering && (pm_measures.OutAirTemp > 2.0)) {
         LOG_I(TAG, " !!!!! --- Stop filtration due to end of antifreeze --- !!!!!");
+        NbLoop += MaxLoopBeforeWrite; // force to write
+        PM_Write_Filtration_UpTime();
+        PM_FiltrationPumpStop();
+
+        AntiFreezeFiltering = false;
     }
 
     //If filtration pump has been running for over 45secs but pressure is still low, stop the filtration pump, something is wrong, set error flag
     if (FiltrationPump.IsRunning() && ((millis() - FiltrationPump.LastStartTime) > 45000) && (pm_measures.Pressure < pm_measures.PressureMedThreshold)) {
-        FiltrationPump.Stop();
-        PSIError = true;
         LOG_I(TAG, " !!!!! --- Stop filtration as the pressure is still low --- !!!!!");
+        NbLoop += MaxLoopBeforeWrite; // force to write
+        PM_Write_Filtration_UpTime();
+        PM_FiltrationPumpStop();
+
+        PSIError = true;
         //mqttErrorPublish("{\"Pressure Error\":1}");
     }  
 
     // Over-pressure error
     if (pm_measures.Pressure > pm_measures.PressureHighThreshold) {
-        FiltrationPump.Stop();
-        PSIError = true;
         LOG_I(TAG, " !!!!! --- Stop filtration as the pressure is TOO HIGH --- !!!!!");
+        NbLoop += MaxLoopBeforeWrite; // force to write
+        PM_Write_Filtration_UpTime();
+        PM_FiltrationPumpStop();
+
+        PSIError = true;
         //mqttErrorPublish("{\"Pressure Error\":1}");
     } else if(pm_measures.Pressure >= pm_measures.PressureMedThreshold) {
         PSIError = false;
@@ -206,6 +237,43 @@ void PM_Task_Pool_Manager(void *pvParameters)
 
     stack_mon(hwm);
     vTaskDelayUntil(&ticktime,period);
+  }
+}
+
+void PM_Write_Filtration_UpTime() {
+
+  LOG_V(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
+  if(FiltrationPump.IsRunning() ) {  
+    if (NbLoop >= MaxLoopBeforeWrite ) {  // write on flash only every "MaxLoopBeforeWrite" loops
+    pm_measures.DayFiltrationUptime += (FiltrationPump.UpTime - LastWrittenUpTime) /1000 ; // milliseconds to seconds
+    PM_NVS_saveParam("DayFiltrUptime", (unsigned long)pm_measures.DayFiltrationUptime);
+    LastWrittenUpTime = FiltrationPump.UpTime;
+    LOG_V(TAG, "DayFiltrationUptime = %d", pm_measures.DayFiltrationUptime);
+    NbLoop = 0;
+    }
+  }
+}
+
+void PM_FiltrationPumpStart() {
+  if (FiltrationPump.Start() ) {
+    LOG_I(TAG, "Filtration pump started");
+    LOG_V(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
+    LastWrittenUpTime = FiltrationPump.LastStartTime;
+  } 
+  else {
+    LOG_E(TAG, "Cannot Start filtration pump !!!!");
+    LastWrittenUpTime = 0;
+  }
+}
+
+void PM_FiltrationPumpStop() {
+  if (FiltrationPump.Stop() ) {
+    LOG_I(TAG, "Filtration pump stopped");
+    LOG_V(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
+    LastWrittenUpTime = 0;
+  }
+  else {
+    LOG_E(TAG, "Cannot Stop filtration pump !!!!");
   }
 }
 

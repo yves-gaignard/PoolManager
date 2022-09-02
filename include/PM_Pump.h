@@ -39,7 +39,7 @@ class PM_Pump{
     bool Stop();
     bool IsRunning();
     bool TankLevel();
-    double GetTankUsage();    
+    double GetTankUsage();
     void SetTankVolume(double Volume);
     void SetFlowRate(double FlowRate);
     bool Interlock();
@@ -49,21 +49,23 @@ class PM_Pump{
     double GetTankFill();
 
     void ClearErrors();
-    
-    unsigned long UpTime;
-    unsigned long MaxUpTime;
-    unsigned long CurrMaxUpTime;
-    bool UpTimeError;
-    unsigned long StartTime;
-    unsigned long LastStartTime;
-    unsigned long StopTime; 
-    double flowrate, tankvolume, tankfill;          
+                         
+    unsigned long UpTime;          // (in ms), running time in milli-seconds since the last start of the pump 
+    unsigned long MaxUpTime;       // (in ms), maximum authorized uptime (if 0, no max uptime) 
+    unsigned long CurrMaxUpTime;   // (in ms), current maximum authorized uptime (if 0, no max uptime). This value is used to compare with uptime. It is initialized with MaxUpTime, but can be extended if needed
+    bool UpTimeError;              // if true, means that UpTime reached CurrMaxUpTime
+    unsigned long StartTime;       // (in ms), timestamp of the last loop time
+    unsigned long LastStartTime;   // (in ms), timestamp of the last pump start
+    unsigned long StopTime;        // (in ms), not sure of its usage
+    double flowrate;               // (in Liters per hour) flowrate of the pump
+    double tankvolume;             // (in Liters) volume of the tank
+    double tankfill;               // (in percent) percentage of liquid that tank still contain
+  
   private:
-     
-    uint8_t pumppin; 
-    uint8_t isrunningsensorpin;
-    uint8_t tanklevelpin;
-    uint8_t interlockpin;
+    uint8_t pumppin;               // pin of pump command
+    uint8_t isrunningsensorpin;    // result of the pin read to know if the pump is running or not
+    uint8_t tanklevelpin;          // pin used to determine the tank level
+    uint8_t interlockpin;          // pin used to determine if the pump can be run simultaneously with another pump
 
 };
 #endif

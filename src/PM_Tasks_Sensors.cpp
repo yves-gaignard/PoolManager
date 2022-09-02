@@ -73,15 +73,15 @@ void PM_Task_GetTemperature      ( void *pvParameters ) {
 
       if (deviceName == insideThermometerName) {
         pm_measures.InAirTemp = preciseTemperatureC;
-        saveParam("InAirTemp", pm_measures.InAirTemp);
+        PM_NVS_saveParam("InAirTemp", pm_measures.InAirTemp);
       }
       else if (deviceName == outsideThermometerName){
         pm_measures.OutAirTemp = preciseTemperatureC;
-        saveParam("OutAirTemp", pm_measures.OutAirTemp);
+        PM_NVS_saveParam("OutAirTemp", pm_measures.OutAirTemp);
       } 
       else if (deviceName == waterThermometerName) {
         pm_measures.WaterTemp = preciseTemperatureC;
-        saveParam("WaterTemp", pm_measures.WaterTemp);
+        PM_NVS_saveParam("WaterTemp", pm_measures.WaterTemp);
       }
     }
 

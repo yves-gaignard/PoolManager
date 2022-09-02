@@ -9,8 +9,10 @@
 
 #include <Arduino.h>
 #include <ESPPerfectTime.h>
+#include <WebSerialLite.h>
 
 #include "PM_Log.h"
+#include "PM_Parameters.h"
 
 // Default values
 static int const DEFAULT_LOG_LEVEL   = LOG_VERBOSE;
@@ -24,6 +26,7 @@ PM_Log::PM_Log() {
   formatTimestampOn();
   setLogLevel(DEFAULT_LOG_LEVEL);
   setLogOutputStream(DEFAULT_OUTPUT_STREAM);
+  setWebSerialOff();
 }
 
 // Public member functions
@@ -65,6 +68,25 @@ void PM_Log::setTag(const char * tag, const int log_level) {
   }
 }
 
+void PM_Log::setTag(const char * tag, const char * log_level) {
+  String _log_level = log_level;
+  if (_log_level.equalsIgnoreCase("error")) {
+    setTag(tag, LOG_ERROR);
+  }
+  else if (_log_level.equalsIgnoreCase("warning")) {
+    setTag(tag, LOG_WARNING);
+  }
+  else if (_log_level.equalsIgnoreCase("info")) {
+    setTag(tag, LOG_INFO);
+  }
+  else if (_log_level.equalsIgnoreCase("debug")) {
+    setTag(tag, LOG_DEBUG);
+  }
+  else if (_log_level.equalsIgnoreCase("verbose")) {
+    setTag(tag, LOG_VERBOSE);
+  }
+}
+
 void PM_Log::newlineOn() {
   _newline_on = true;
 }
@@ -97,6 +119,13 @@ void PM_Log::timestampOff() {
   _timestamp_on = false;
 }
 
+void PM_Log::setWebSerialOn() {
+  _is_web_serial = true;
+}
+
+void PM_Log::setWebSerialOff() {
+  _is_web_serial = false;
+}
 
 void PM_Log::print(const char * tag, int const log_level, const char * fmt, ...) {
   if (!shouldPrint(tag, log_level))
@@ -148,9 +177,12 @@ void PM_Log::vPrint(char const * fmt, va_list args) {
 
   if (_newline_on) {
     _log_output_stream->println(msg_buf);
+    if (_is_web_serial) WebSerial.println(msg_buf);
   } 
   else {
     _log_output_stream->print(msg_buf);
+        if (_is_web_serial) WebSerial.print(msg_buf);
+
   }
 
 #if __STDC_NO_VLA__ == 1
@@ -179,6 +211,8 @@ void PM_Log::printTimestamp()
   }
 
   _log_output_stream->print(timestamp);
+  if (_is_web_serial) WebSerial.print(timestamp);
+
 }
 
 void PM_Log::printLogLabel(int const log_level)
@@ -189,6 +223,8 @@ void PM_Log::printLogLabel(int const log_level)
     return;
 
   _log_output_stream->print(LOG_MODE_STRING[log_level]);
+  if (_is_web_serial) WebSerial.print(LOG_MODE_STRING[log_level]);
+
 }
 
 bool PM_Log::shouldPrint(const char * tag, int const log_level) {

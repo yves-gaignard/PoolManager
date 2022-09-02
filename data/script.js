@@ -26,7 +26,7 @@ function refreshGaugeData() {
 			document.getElementById("gaugePressure"  ).setAttribute("data-value", jsonResponse.PSI);
 			document.getElementById("gaugePhTankFill").setAttribute("data-value", jsonResponse.pHFill);
 			document.getElementById("gaugeChlorineTankFill").setAttribute("data-value", jsonResponse.ChFill);
-			let FiltrationTimeRatio=(jsonResponse.FedDur / jsonResponse.DFDur *100);
+			let FiltrationTimeRatio=( jsonResponse.DFUpt / jsonResponse.DFTrgt *100);
 			document.getElementById("gaugeFiltration").setAttribute("data-value", FiltrationTimeRatio);
 		}
 	};
@@ -46,23 +46,25 @@ function refreshControlInfo() {
 	xhttp.send();
 	if (xhttp.readyState == 4 && xhttp.status == 200) {
 		let jsonResponse = JSON.parse(xhttp.responseText);
-		controls.push({ name:"Auto Mode", value: jsonResponse.Auto});
-		controls.push({ name:"Winter Mode", value: jsonResponse.Winter});
-		controls.push({ name:"Filtration", value: jsonResponse.FPmpS});
-		controls.push({ name:"pH- regulation", value: jsonResponse.pHROO});
-		controls.push({ name:"pH- Pump", value: jsonResponse.pHPmpS});
-		controls.push({ name:"Orp regulation", value: jsonResponse.OrpROO});
-		controls.push({ name:"Chlorine Pump", value: jsonResponse.OrpPmpS});
-		controls.push({ name:"pH PID", value: jsonResponse.pHWS});
-		controls.push({ name:"Orp PID", value: jsonResponse.ChlWS});
-		controls.push({ name:"Filtered", value: convertHMS(jsonResponse.FedDur)});
-		controls.push({ name:"Filtration", value: convertHMS(jsonResponse.DFDur)});
-		controls.push({ name:"Filtration start", value: Time_tToDate(jsonResponse.FSta).toLocaleTimeString('fr-FR')});
-		controls.push({ name:"Filtration end", value: Time_tToDate(jsonResponse.FEnd).toLocaleTimeString('fr-FR')});
-//		controls.push({ name:"Filtration start", value: Time_tToDate(jsonResponse.FSta).toISOString()});
-//		controls.push({ name:"Filtration end", value: Time_tToDate(jsonResponse.FEnd).toISOString()});
-		controls.push({ name:"pH uptime limit (min)", value: jsonResponse.pHUTL});
-		controls.push({ name:"Chlorine uptime limit (min)", value: jsonResponse.OrpUTL});
+		controls.push({ name:"Auto Mode",      value: (jsonResponse.Auto   ?"ON":"OFF")});
+		controls.push({ name:"Winter Mode",    value: (jsonResponse.Winter ?"ON":"OFF")});
+		controls.push({ name:"Filtration",     value: (jsonResponse.FPmpS  ?"ON":"OFF")});
+		controls.push({ name:"pH regulation",  value: (jsonResponse.pHROO  ?"ON":"OFF")});
+		controls.push({ name:"pH Pump",        value: (jsonResponse.pHPmpS ?"ON":"OFF")});
+		controls.push({ name:"Orp regulation", value: (jsonResponse.OrpROO ?"ON":"OFF")});
+		controls.push({ name:"Chlorine Pump",  value: (jsonResponse.OrpPmpS?"ON":"OFF")});
+		controls.push({ name:"pH PID",                         value: jsonResponse.pHWS});
+		controls.push({ name:"Orp PID",                        value: jsonResponse.ChlWS});
+		controls.push({ name:"Day Filtration Uptime",          value: convertHMS(jsonResponse.DFUpt)});
+		controls.push({ name:"Day Filtration Target",          value: convertHMS(jsonResponse.DFTrgt)});
+		controls.push({ name:"Period Filtration Start",        value: Time_tToDate(jsonResponse.PFSta).toLocaleTimeString('fr-FR')});
+		controls.push({ name:"Period Filtration End",          value: Time_tToDate(jsonResponse.PFEnd).toLocaleTimeString('fr-FR')});
+		controls.push({ name:"pH- uptime limit (min)",         value: jsonResponse.pHUTL});
+		controls.push({ name:"Chlorine uptime limit (min)",    value: jsonResponse.OrpUTL});
+		controls.push({ name:"Previous Day Filtration Uptime", value: convertHMS(jsonResponse.PDFUpt)});
+		controls.push({ name:"Previous Day Filtration Target", value: convertHMS(jsonResponse.PDFTrgt)});
+		controls.push({ name:"Reboot Number",                  value: jsonResponse.Reboot});
+		controls.push({ name:"Last Reboot Date",               value: Time_tToDate(jsonResponse.RTime).toLocaleTimeString('fr-FR')});
 	}
 
 	let headers = ['Control', 'Status'];
