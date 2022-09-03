@@ -61,7 +61,7 @@ extern bool EmergencyStopFiltPump;                     // Filtering pump stopped
 extern void PM_Display_screen_1();
 extern void PM_Display_screen_2();
 
-extern void PM_CalculateNextFiltrationPeriods();
+extern void PM_ComputeNextFiltrationPeriods();
 
 extern void PM_Write_Filtration_UpTime();
 extern void PM_FiltrationPumpStart();

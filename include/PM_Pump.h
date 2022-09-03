@@ -45,16 +45,17 @@ class PM_Pump{
     bool Interlock();
     void SetMaxUpTime(unsigned long Max);
     void ResetUpTime();
+    void SetUpTime(unsigned long SavedUpTime);
     void SetTankFill(double);
     double GetTankFill();
 
     void ClearErrors();
                          
-    unsigned long UpTime;          // (in ms), running time in milli-seconds since the last start of the pump 
+    unsigned long UpTime;          // (in ms), run time since the last reset of Uptime (usually at midnight) 
     unsigned long MaxUpTime;       // (in ms), maximum authorized uptime (if 0, no max uptime) 
     unsigned long CurrMaxUpTime;   // (in ms), current maximum authorized uptime (if 0, no max uptime). This value is used to compare with uptime. It is initialized with MaxUpTime, but can be extended if needed
     bool UpTimeError;              // if true, means that UpTime reached CurrMaxUpTime
-    unsigned long StartTime;       // (in ms), timestamp of the last loop time
+    unsigned long LastLoopTime;    // (in ms), timestamp of the last loop time
     unsigned long LastStartTime;   // (in ms), timestamp of the last pump start
     unsigned long StopTime;        // (in ms), not sure of its usage
     double flowrate;               // (in Liters per hour) flowrate of the pump

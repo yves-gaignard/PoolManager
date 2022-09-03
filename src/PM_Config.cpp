@@ -117,8 +117,8 @@ ulong PM_Config::GetFiltrationDuration (float waterTemperature) {
   return DurationInSeconds;
 }
 
-// Calculate next period of filtration
-void PM_Config::NextFiltrationPeriod (time_t &NextStartTime, time_t &NextEndTime, const ulong FiltrationDoneInSeconds, const ulong FiltrationDurationInSeconds) {
+// Get next period of filtration
+void PM_Config::GetNextFiltrationPeriod (time_t &NextStartTime, time_t &NextEndTime, const ulong FiltrationDoneInSeconds, const ulong FiltrationDurationInSeconds) {
   int NumberLine = PM_FiltrationPeriod_Abaqus.size();
   time_t AvailableDuration = 0;
   time_t diffTime = 0;
