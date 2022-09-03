@@ -27,10 +27,10 @@ PM_Pump::PM_Pump(uint8_t PumpPin, uint8_t IsRunningSensorPin, uint8_t TankLevelP
   flowrate = FlowRate;           // (in Liters per hour)
   tankvolume = TankVolume;       // (in Liters)
   tankfill = TankFill;           // (in percent)
-  StartTime = 0;                 // (in ms), timestamp of the last loop time
+  LastLoopTime = 0;              // (in ms), timestamp of the last loop time
   LastStartTime = 0;             // (in ms), timestamp of the last pump start
   StopTime = 0;                  // (in ms), not sure of its usage
-  UpTime = 0;                    // (in ms), millis since the last start of the pump     
+  UpTime = 0;                    // (in ms), run time since the last reset of Uptime (usually at midnight)     
   UpTimeError = 0;
   MaxUpTime = DefaultMaxUpTime;
   CurrMaxUpTime = MaxUpTime;
@@ -41,8 +41,8 @@ void PM_Pump::loop()
 {
   if(digitalRead(isrunningsensorpin) == PUMP_ON)
   {
-    UpTime += millis() - StartTime;
-    StartTime = millis();
+    UpTime += millis() - LastLoopTime;
+    LastLoopTime = millis();
   }
 
   if((CurrMaxUpTime > 0) && (UpTime >= CurrMaxUpTime))
@@ -72,7 +72,7 @@ bool PM_Pump::Start()
     //LOG_D(TAG, "start Pump digitalWrite(%d,%d)",pumppin, PUMP_ON);
     digitalWrite(pumppin, PUMP_ON);
     //LOG_D(TAG, "digitalRead(%d)=%d",isrunningsensorpin,digitalRead(isrunningsensorpin));
-    StartTime = LastStartTime = millis(); 
+    LastLoopTime = LastStartTime = millis(); 
     return true; 
   }
   else return false;
@@ -87,7 +87,7 @@ bool PM_Pump::Stop()
     //LOG_D(TAG, "stop Pump digitalWrite(%d,%d)",pumppin, PUMP_OFF);
     digitalWrite(pumppin, PUMP_OFF);
     //LOG_D(TAG, "digitalRead(%d)=%d",isrunningsensorpin,digitalRead(isrunningsensorpin));
-    UpTime += millis() - StartTime; 
+    UpTime += millis() - LastLoopTime; 
     return true;
   }
   else return false;
@@ -97,10 +97,17 @@ bool PM_Pump::Stop()
 //This is typically called every day at midnight
 void PM_Pump::ResetUpTime()
 {
-  StartTime = 0;
+  LastLoopTime = 0;
   StopTime = 0;
   UpTime = 0;
   CurrMaxUpTime = MaxUpTime;
+}
+
+// Set the running time
+//This is typically called at each reboot from a non volatile storage
+void PM_Pump::SetUpTime(unsigned long SavedUpTime)
+{
+  UpTime = SavedUpTime;
 }
 
 //Set a maximum running time (in millisecs) per day (in case ResetUpTime() is called once per day)

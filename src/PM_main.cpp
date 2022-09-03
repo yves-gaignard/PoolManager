@@ -243,6 +243,8 @@ void setup() {
   nvs.begin(Project.Name.c_str(),false);
   if ( ! nvs.clear() ) LOG_E(TAG, "Cannot clear the NVS namespace: %s", Project.Name.c_str());
   nvs.end();
+  LOG_I(TAG, "Data from NVS have been reseted. You can change the sketch and restart");
+  for ( ;; ) {} //infinite loop as it is just to reset the data
 #endif
 
   // Initialize NVS data 
@@ -334,6 +336,7 @@ void setup() {
 
   //Initialize pump instances with stored config data
   FiltrationPump.SetMaxUpTime(0);     //no runtime limit for the filtration pump
+  FiltrationPump.SetUpTime(pm_measures.DayFiltrationUptime*1000); //last uptime of filtration
 
   PhPump.SetFlowRate(pm_measures.pHMinusFlowRate);
   PhPump.SetTankVolume(pm_measures.pHMinusTankVolume);
@@ -346,7 +349,7 @@ void setup() {
   ChlPump.SetMaxUpTime(pm_measures.OrpPumpUpTimeLimit * 1000);
 
   // Start filtration pump at power-on if within scheduled time slots -- You can choose not to do this and start pump manually
-  PM_CalculateNextFiltrationPeriods();
+  PM_ComputeNextFiltrationPeriods();
   now = pftime::time(nullptr); // get current time
   if (pm_measures.AutoMode && (now >= pm_measures.PeriodFiltrationStartTime) && (now < pm_measures.PeriodFiltrationEndTime)) {
     PM_FiltrationPumpStart();
@@ -680,9 +683,9 @@ void PM_SetOrpPID(bool Enable)
   }
 }
 // =================================================================================================
-//                         CALCULATE FILTRATION PERIODS OF THE DAY
+//                         COMPUTE FILTRATION PERIODS OF THE DAY
 // =================================================================================================
-void PM_CalculateNextFiltrationPeriods() {
+void PM_ComputeNextFiltrationPeriods() {
 
   // calculate the filtration duration in seconds depending on the water temperature
   LOG_D(TAG, "Water temperature: %6.2f", pm_measures.WaterTemp);
@@ -693,7 +696,7 @@ void PM_CalculateNextFiltrationPeriods() {
   LOG_D(TAG, "Filtration duration for this day: %02d:%02d:%02d (%ds)", tm_duration.tm_hour, tm_duration.tm_min, tm_duration.tm_sec, pm_measures.DayFiltrationTarget);
   
   if (pm_measures.DayFiltrationUptime <= pm_measures.DayFiltrationTarget) {
-    Pool_Configuration.NextFiltrationPeriod (pm_measures.PeriodFiltrationStartTime, pm_measures.PeriodFiltrationEndTime, pm_measures.DayFiltrationUptime, pm_measures.DayFiltrationTarget);
+    Pool_Configuration.GetNextFiltrationPeriod (pm_measures.PeriodFiltrationStartTime, pm_measures.PeriodFiltrationEndTime, pm_measures.DayFiltrationUptime, pm_measures.DayFiltrationTarget);
     PM_NVS_saveParam("PFiltrStartTime", (unsigned long)pm_measures.PeriodFiltrationStartTime);
     PM_NVS_saveParam("PFiltrEndTime", (unsigned long)pm_measures.PeriodFiltrationEndTime);
   }

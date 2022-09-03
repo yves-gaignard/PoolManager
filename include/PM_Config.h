@@ -11,6 +11,7 @@
 #include "PM_Structures.h"
 #include "PM_Error.h"
 
+#define PM_DEBUG 1
 
 // =========================================================================================================
 //                                   Pool parameters that you have to configure
@@ -32,6 +33,7 @@
 // - Rule 2 : temperatures in the temperature ranges must be consecutives (aka TempMin of a line must be equal to TempMax of the previous line)
 // - Rule 3 : the filtration duration of consecutive lines must increase 
 
+#if PM_DEBUG == 0  // standard case
 static std::vector<PM_FiltrationDuration> PM_FiltrationDuration_Abaqus = {
 // { TempMin , TempMax, FiltrationTime }  
   {-20, 14,  2} ,       //             <14°C  ==>  2 hours
@@ -50,6 +52,27 @@ static std::vector<PM_FiltrationDuration> PM_FiltrationDuration_Abaqus = {
   { 30, 32, 15} ,       //  >=30°C and <32°C  ==> 15 hours
   { 32, 99, 16}         //  >=32°C            ==> 16 hours
 };
+#else // debug case
+static std::vector<PM_FiltrationDuration> PM_FiltrationDuration_Abaqus = {
+// { TempMin , TempMax, FiltrationTime }  
+  {-20, 14,  2} ,       //             <14°C  ==>  2 hours
+  { 14, 15,  3} ,       //  >=14°C and <15°C  ==>  3 hours
+  { 15, 16,  4} ,       //  >=15°C and <16°C  ==>  4 hours
+  { 16, 17,  4} ,       //  >=16°C and <17°C  ==>  5 hours
+  { 17, 18,  4} ,       //  >=17°C and <18°C  ==>  6 hours
+  { 18, 19,  4} ,       //  >=18°C and <19°C  ==>  7 hours
+  { 19, 20,  4} ,       //  >=19°C and <20°C  ==>  8 hours
+  { 20, 21,  4} ,       //  >=20°C and <21°C  ==>  9 hours
+  { 21, 22,  4} ,       //  >=21°C and <22°C  ==> 10 hours
+  { 22, 24,  4} ,       //  >=22°C and <24°C  ==> 11 hours
+  { 24, 26,  4} ,       //  >=24°C and <26°C  ==> 12 hours
+  { 26, 28,  4} ,       //  >=26°C and <28°C  ==> 13 hours
+  { 28, 30,  4} ,       //  >=28°C and <30°C  ==> 14 hours
+  { 30, 32,  4} ,       //  >=30°C and <32°C  ==> 15 hours
+  { 32, 99,  4}         //  >=32°C            ==> 16 hours
+};
+#endif
+
 /*  Other possibility found on https://www.desjoyaux.fr/faq/combien-de-temps-pour-la-filtration-de-ma-piscine/#:~:text=La%20r%C3%A8gle%20la%20plus%20simple,filtrer%2012%20heures%20par%20jours.
   std::vector<PM_FiltrationDuration> PM_FiltrationDuration_Abaqus = {
   // { TempMin , TempMax, FiltrationDuration }  
@@ -80,10 +103,11 @@ static std::vector<PM_FiltrationDuration> PM_FiltrationDuration_Abaqus = {
 // 
 // NB: The array does not need to be sorted and priority begin from 1.
 
+#if PM_DEBUG == 0  // standard case
 static std::vector<PM_FiltrationPeriod> PM_FiltrationPeriod_Abaqus = {
 // { Start , End, Priority }  
-  {  0,  6,  3},  // The night period is considered as less priority than the light day.
-  {  6, 12,  1},  // The main priority 1 is allocated to the morning
+  {  0,  8,  3},  // The night period is considered as less priority than the light day.
+  {  8, 12,  1},  // The main priority 1 is allocated to the morning
   { 12, 14,  4},  // During lunch time, the filtration is on only when necessary 
   { 14, 20,  1},  // ... and for the afternoon (priority 1 too)
   { 20, 24,  2}   // The evening will be taken if the filtration time is greater than the sum of the morning and the afternoon period
@@ -92,6 +116,20 @@ static std::vector<PM_FiltrationPeriod> PM_FiltrationPeriod_Abaqus = {
 // Example 2: if the duration of the filtration is 12h per day, the filtration will at 8h-12h, 14h-20h and 20h-22h
 // Example 3: if the duration of the filtration is 16h per day, the filtration will at 0h-2h, 8h-12h, 14h-20h and 20h-24h
 // Example 4: if the duration of the filtration is 23h per day, the filtration will at 0h-2h, 8h-12h, 12h-13h, 14h-20h and 20h-24h
+#else // debug case
+static std::vector<PM_FiltrationPeriod> PM_FiltrationPeriod_Abaqus = {
+// { Start , End, Priority }  
+  {  0,  6,  3},  // The night period is considered as less priority than the light day.
+  {  6,  9,  1},  // The main priority 1 is allocated to the morning
+  {  9, 10,  5},  // The main priority 1 is allocated to the morning
+  { 10, 11,  1},  // The main priority 1 is allocated to the morning
+  { 11, 12,  1},  // The main priority 1 is allocated to the morning
+  { 12, 13,  5},  // During lunch time, the filtration is on only when necessary 
+  { 13, 14,  1},  // During lunch time, the filtration is on only when necessary 
+  { 14, 15,  5},  // ... and for the afternoon (priority 1 too)
+  { 15, 24,  2}   // The evening will be taken if the filtration time is greater than the sum of the morning and the afternoon period
+};
+#endif
 
 // ------------------------------------------------------------
 // pH (potential hydrogen) 
@@ -183,8 +221,8 @@ class PM_Config {
     // Get filtration duration in seconds depending on the temperature
     ulong GetFiltrationDuration (float waterTemperature);
 
-    // Calculate next period of filtration
-    void NextFiltrationPeriod (time_t &NextStartTime, time_t &NextEndTime, const ulong FiltrationDoneInSeconds, const ulong FiltrationDurationInSeconds);
+    // Get next period of filtration
+    void GetNextFiltrationPeriod (time_t &NextStartTime, time_t &NextEndTime, const ulong FiltrationDoneInSeconds, const ulong FiltrationDurationInSeconds);
 
 };
 
