@@ -13,6 +13,7 @@
 #include <ESPPerfectTime.h>       // Library for management time
 
 #include "PM_Pool_Manager.h"
+#include "PM_Parameters.h"
 #include "PM_Time_Mngt.h"
 
 //static WiFiClient wificlient;

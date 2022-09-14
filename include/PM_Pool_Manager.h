@@ -18,13 +18,11 @@
 #include "PM_Log.h"
 #include "PM_TFT.h"
 #include "PM_Structures.h"
-#include "PM_Screens.h"
 #include "PM_Temperature.h"
 #include "PM_Pump.h" 
 
 // Instantiate TFT display and a screen template
-extern PM_TFT tft;
-extern PM_Screens screens;
+extern PM_TFT PM_tft;
 
 // NVS Non Volatile SRAM (eqv. EEPROM)
 extern Preferences nvs;   

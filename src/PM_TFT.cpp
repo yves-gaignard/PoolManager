@@ -16,6 +16,7 @@
 #include "PM_TFT.h"                // Pool manager TFT management
 #include "PM_Log.h"                // Pool manager log management
 #include "PM_Utils.h"
+#include "PM_Parameters.h"
 
 //#define FORCE_CALIBRATE 1
 
@@ -28,12 +29,17 @@ TFT_eSPI* _pGlobalTFT=nullptr;
 int16_t xpos = 0;
 int16_t ypos = 0;
 
-// Constructors
+//====================================================================================
+//                            TFT Constructors / Destructors
+//====================================================================================
 PM_TFT::PM_TFT(int16_t TFT_Wide, int16_t TFT_Height, u_int8_t TFT_Led_pin) {
   _TFT_Wide = TFT_Wide;
   _TFT_Height = TFT_Height;
   _pTFT = new TFT_eSPI(TFT_Wide, TFT_Height);
   _TFT_Led_Pin = TFT_Led_pin;
+  _lastTouchTime = 0;
+  Clear();
+  Backlight();
 }
 
 PM_TFT::~PM_TFT(void) {
@@ -42,8 +48,12 @@ PM_TFT::~PM_TFT(void) {
   _TFT_Wide = 0;
   _TFT_Height = 0;
   _TFT_Led_Pin = 0;
+  NoBacklight();
 }
 
+//====================================================================================
+//                            TFT Init
+//====================================================================================
 void PM_TFT::Init(void) {
   // Initialise FS
   if (!FileSys.begin()) {
@@ -64,6 +74,7 @@ void PM_TFT::Init(void) {
   _pTFT->begin();
   pinMode(_TFT_Led_Pin, OUTPUT);
   digitalWrite(_TFT_Led_Pin,HIGH);
+  _lastTouchTime = millis();
   _pTFT->fillScreen(TFT_BLACK);
   _pTFT->setRotation(3);
 
@@ -85,18 +96,32 @@ void PM_TFT::Init(void) {
   LOG_I(TAG, "TFT Initialisation done.");
 }
 
+//====================================================================================
+//                            Clear the screen
+//====================================================================================
 void PM_TFT::Clear(void) {
   _pTFT->fillScreen(TFT_BLACK);
 }
 
+//====================================================================================
+//                       Stop backlight of screen
+//====================================================================================
 void PM_TFT::NoBacklight(void) {
   digitalWrite(_TFT_Led_Pin,LOW);
+  _Backlight = FALSE;
 }
 
+//====================================================================================
+//                       Activate backlight of screen
+//====================================================================================
 void PM_TFT::Backlight(void) {
   digitalWrite(_TFT_Led_Pin,HIGH);
+  _Backlight = TRUE;
 }
 
+//====================================================================================
+//                            Error Screen
+//====================================================================================
 void PM_TFT::PrintError(std::string ErrorNumber, std::string ErrorMessage) {
   // Display the error page
   ImageDraw(0, 0, (std::string)HOME_ERRORS);    // (480x320)
@@ -112,33 +137,42 @@ void PM_TFT::PrintError(std::string ErrorNumber, std::string ErrorMessage) {
 void PM_TFT::Loop(void)
 {
   uint16_t x, y;
+  unsigned long currentTime = millis();
 
+  if ( currentTime > (_lastTouchTime + TFT_NO_TOUCH_TIMEOUT*1000)) { NoBacklight(); }  // shutdown the TFT light if inactivity > TFT_NO_TOUCH_TIMEOUT
+
+  LOG_V(TAG, "TFT - In Loop");
   if (_pTFT->getTouch(&x, &y)) {
-    Serial.printf("Touch in: %d , %d\n", x, y);
+    LOG_D(TAG, "TFT - Touch in: %d , %d", x, y);
+
+    if (! _Backlight) { Backlight(); } // Activate the TFT light if needed
+    _lastTouchTime = millis();
 
     // Touch zone 
     if ( x>TOUCH_MEASURES_X && x <= (TOUCH_MEASURES_X+TOUCH_MEASURES_WIDTH) && y > TOUCH_ZONE_Y && y <= (TOUCH_ZONE_Y+TOUCH_ZONE_HEIGHT)) {
-      Serial.println("In Measures zone");
+      LOG_D(TAG, "TFT - In Measures zone");
       PrintMeasuresScreen();
     }
     else if (x>TOUCH_SWITCHES_X && x <= (TOUCH_SWITCHES_X+TOUCH_SWITCHES_WIDTH) && y > TOUCH_ZONE_Y && y <= (TOUCH_ZONE_Y+TOUCH_ZONE_HEIGHT))
     {
-      Serial.println("In Switches zone");
+      LOG_D(TAG, "TFT - In Switches zone");
       PrintSwitchesScreen();
     }
     else if (x>TOUCH_CALIBS_X && x <= (TOUCH_CALIBS_X+TOUCH_CALIBS_WIDTH) && y > TOUCH_ZONE_Y && y <= (TOUCH_ZONE_Y+TOUCH_ZONE_HEIGHT))
     {
-      Serial.println("In Calibs zone");
+      LOG_D(TAG, "TFT - In Calibs zone");
       PrintCalibsScreen();
     }
     else if ( x>TOUCH_SETTINGS_X && x <= (TOUCH_SETTINGS_X+TOUCH_SETTINGS_WIDTH) && y > TOUCH_ZONE_Y && y <= (TOUCH_ZONE_Y+TOUCH_ZONE_HEIGHT)) {
-      Serial.println("In Settings zone");
+      LOG_D(TAG, "TFT - In Settings zone");
       PrintSettingsScreen();
     }
   }
-  //delay(100);
 }
 
+//====================================================================================
+//                               Measures Screen
+//====================================================================================
 void PM_TFT::PrintMeasuresScreen() {
   // Display the empty page
   ImageDraw(0, 0, (std::string)HOME_MEASURES);    // (480x320)
@@ -195,6 +229,9 @@ void PM_TFT::PrintMeasuresScreen() {
   _pTFT->drawString("100 %"  , 410, 255, 4);
 }
 
+//====================================================================================
+//                               Switches Screen
+//====================================================================================
 void PM_TFT::PrintSwitchesScreen() {
   // Display the empty page
   ImageDraw(0, 0, (std::string)HOME_SWITCHES);    // (480x320)
@@ -206,6 +243,9 @@ void PM_TFT::PrintSwitchesScreen() {
   PrintScreenHeader();
 }
 
+//====================================================================================
+//                               Calibs Screen
+//====================================================================================
 void PM_TFT::PrintCalibsScreen() {
   // Display the empty page
   ImageDraw(0, 0, (std::string)HOME_CALIBS);    // (480x320)
@@ -217,6 +257,9 @@ void PM_TFT::PrintCalibsScreen() {
   PrintScreenHeader();
 }
 
+//====================================================================================
+//                               Settings Screen
+//====================================================================================
 void PM_TFT::PrintSettingsScreen() {
   // Display the empty page
   ImageDraw(0, 0, (std::string)HOME_SETTINGS);    // (480x320)
@@ -228,6 +271,9 @@ void PM_TFT::PrintSettingsScreen() {
   PrintScreenHeader();
 }
 
+//====================================================================================
+//                               Screen Header
+//====================================================================================
 void PM_TFT::PrintScreenHeader() { 
   // Select font color
   _pTFT->setTextColor(C_TURQUOISE, C_BLACK);
@@ -237,6 +283,9 @@ void PM_TFT::PrintScreenHeader() {
   ImageDraw(210, 4, (std::string)ICON_WIFI_ON); 
 }
 
+//====================================================================================
+//                            Draw any PNG image on screen
+//====================================================================================
 int16_t PM_TFT::ImageDraw(int16_t _xpos, int16_t _ypos, const std::string& filename) {
   int16_t rc = 0;
   xpos=_xpos;
@@ -248,22 +297,20 @@ int16_t PM_TFT::ImageDraw(int16_t _xpos, int16_t _ypos, const std::string& filen
     rc = png.open(filename.c_str(), pngOpen, pngClose, pngRead, pngSeek, pngDraw);
     if (rc == PNG_SUCCESS) {
       _pTFT->startWrite();
-      //Serial.printf("image specs: (%d x %d), %d bpp, pixel type: %d\n", png.getWidth(), png.getHeight(), png.getBpp(), png.getPixelType());
+      LOG_V(TAG, "TFT - image specs: (%d x %d), %d bpp, pixel type: %d", png.getWidth(), png.getHeight(), png.getBpp(), png.getPixelType());
       uint32_t dt = millis();
       if (png.getWidth() > MAX_IMAGE_WDITH) {
-        Serial.println("Image too wide for allocated line buffer size!");
+        LOG_E(TAG, "TFT - Image too wide for allocated line buffer size!");
       }
       else {
         rc = png.decode(NULL, 0);
         png.close();
       }
       _pTFT->endWrite();
-      // How long did rendering take...
-      //Serial.print(millis()-dt); Serial.println("ms");
     }
   }
   else {
-    Serial.printf("File: %s is a directory or finish not by .png\n", filename);
+    LOG_E(TAG, "TFT - File: %s is a directory or finish not by .png", filename.c_str());
     rc=1;
   }
   return rc;
@@ -273,7 +320,7 @@ int16_t PM_TFT::ImageDraw(int16_t _xpos, int16_t _ypos, const std::string& filen
 // will use to open files, fetch data and close the file.
 
 void * PM_TFT::pngOpen(const char *filename, int32_t *size) {
-  //Serial.printf("Attempting to open %s\n", filename);
+  LOG_V(TAG, "TFT - Attempting to open %s", filename);
   pngfile = FileSys.open(filename, "r");
   *size = pngfile.size();
   return &pngfile;
@@ -322,15 +369,19 @@ void PM_TFT::CalibrationScreen() {
         calDataOK = 1;
       f.close();
     }
-    Serial.printf("calibrationData existing in file: %s\n", CALIBRATION_FILE);
-    for (int i=0; i<5; i++) { Serial.printf("calibrationData[%d] : %d\n", i, calibrationData[i]); }
+    LOG_I(TAG, "TFT - calibrationData existing in file: %s", CALIBRATION_FILE);
+    for (int i=0; i<5; i++) {
+      LOG_I(TAG, "TFT - calibrationData[%d] : %d", i, calibrationData[i]);
+    }
   }
 
   if (calDataOK) {
     // calibration data valid
     _pTFT->setTouch(calibrationData);
-    Serial.printf("calibrationData used from file: %s\n", CALIBRATION_FILE);
-    for (int i=0; i<5; i++) { Serial.printf("calibrationData[%d] : %d\n", i, calibrationData[i]); }
+    LOG_I(TAG, "TFT - calibrationData used from in file: %s", CALIBRATION_FILE);
+    for (int i=0; i<5; i++) { 
+      LOG_I(TAG, "TFT - calibrationData[%d] : %d", i, calibrationData[i]);
+    }
   } else {
     // data not valid. recalibrate
     _pTFT->fillScreen((0xFFFF));
@@ -342,8 +393,9 @@ void PM_TFT::CalibrationScreen() {
       f.close();
     }
     _pTFT->fillScreen((0xFFFF));
-    Serial.println("calibrationData recalculated");
-    for (int i=0; i<5; i++) { Serial.printf("calibrationData[%d] : %d\n", i, calibrationData[i]); }
+    LOG_I(TAG, "TFT - calibrationData recalculated");
+    for (int i=0; i<5; i++) { 
+      LOG_I(TAG, "TFT - calibrationData[%d] : %d", i, calibrationData[i]);
+    }
   }
-
 }

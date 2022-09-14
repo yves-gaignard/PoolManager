@@ -26,7 +26,7 @@
 #define TOUCH_SETTINGS_WIDTH  133
 #define TOUCH_SETTINGS_X      347
 
-// name of the files on SPIFFS
+// name of the files on SPIFFS (LittleFS)
 #define CALIBRATION_FILE    "/calibrationData"
 #define HOME_MEASURES       "/Home_Measures.png"
 #define HOME_MEASURES_2     "/Home_Measures2.png"
@@ -55,14 +55,17 @@
 
 class PM_TFT {
   private:
-    TFT_eSPI* _pTFT;
-    int16_t   _TFT_Wide;
-    int16_t   _TFT_Height;
-    u_int8_t  _TFT_Led_Pin;
+    TFT_eSPI*     _pTFT;
+    int16_t       _TFT_Wide;
+    int16_t       _TFT_Height;
+    u_int8_t      _TFT_Led_Pin;
+    unsigned long _lastTouchTime;
+    bool          _Backlight;
+  
 
   public:
     // Constructors
-    PM_TFT(int16_t TFT_Wide, int16_t TFT_Height, u_int8_t TFT_Led_pin);
+    PM_TFT(int16_t TFT_Wide, int16_t TFT_Height, u_int8_t TFT_Led_pin = TFT_BL);
     ~PM_TFT();
 
     void Init(void);

@@ -47,7 +47,7 @@ void PM_Task_TFT       ( void *pvParameters ) {
 	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
     LOG_V(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
-    tft.Loop();
+    PM_tft.Loop();
     /*
     // if lcd display button is pressed then set the display ON in case of OFF
     if ( PM_Display_Activation_Request == true) {

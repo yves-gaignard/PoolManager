@@ -151,14 +151,10 @@ const char PM_UTCTimeFormat[19]   ="%Y-%m-%dT%H:%M:%SZ";
 // See Timezone definition here : https://sites.google.com/a/usapiens.com/opnode/time-zones
 const char PM_TimeZone[60] = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; // Paris, France
 
-// LCD display parameters
+// TFT display parameters
 // ----------------------
-// duration of display inactivity before light off (in seconds)
-#define LCD_DISPLAY_TIMEOUT 30
-
-// duration of a screen display before switching to the next time (in seconds)
-//-----------------------------------------------------------------------------
-#define LCD_DISPLAY_SCREEN_DURATION 5
+// duration of screen inactivity before backlight off (in seconds)
+#define TFT_NO_TOUCH_TIMEOUT 30 
 
 // Precision of temperature sensors
 //----------------------------------

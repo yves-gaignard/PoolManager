@@ -35,7 +35,6 @@
 #include "PM_Wifi.h"               // Pool manager wifi management
 #include "PM_OTA_Web_Srv.h"        // Pool manager web server management
 #include "PM_TFT.h"                // Pool manager TFT device management
-#include "PM_Screens.h"            // Pool manager screens
 #include "PM_Error.h"              // Pool manager error management
 #include "PM_Utils.h"              // Pool manager utilities
 #include "PM_Pump.h"               // Pool manager pumps management
@@ -58,10 +57,7 @@ tm* time_tm;
 static byte I2CDevices[128];
 
 // Instantiate TFT display
-PM_TFT tft(SCREEN_WIDTH, SCREEN_HEIGHT, PM_TFT_Led_Pin);
-
-// Instantiate screens
-PM_Screens screens;
+PM_TFT PM_tft(SCREEN_WIDTH, SCREEN_HEIGHT, PM_TFT_Led_Pin);
 
 // NVS Non Volatile SRAM (eqv. EEPROM)
 Preferences nvs;   
@@ -202,7 +198,6 @@ void setup() {
   Log.setTag("PM_NVS"              , LOG_LEVEL);
   Log.setTag("PM_OTA_Web_Srv"      , LOG_DEBUG);
   Log.setTag("PM_Pump"             , LOG_LEVEL);
-  Log.setTag("PM_Screens"          , LOG_LEVEL);
   Log.setTag("PM_Task_Pool_Manager", LOG_DEBUG);
   Log.setTag("PM_Tasks_Display"    , LOG_LEVEL);
   Log.setTag("PM_Tasks_Regulation" , LOG_DEBUG);
@@ -210,7 +205,7 @@ void setup() {
   Log.setTag("PM_Time_Mngt"        , LOG_LEVEL);
   Log.setTag("PM_Temperature"      , LOG_LEVEL);
   Log.setTag("PM_Wifi"             , LOG_LEVEL);
-  Log.setTag("PM_TFT"              , LOG_LEVEL);
+  Log.setTag("PM_TFT"              , LOG_DEBUG);
     
   // Log.formatTimestampOff(); // time in milliseconds (if necessary)
   LOG_I(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
@@ -257,7 +252,7 @@ void setup() {
   PM_NVS_saveParam("LastReboot", (unsigned long)pm_measures.LastRebootTimestamp);
 
   //Init TFT
-  tft.Init();
+  PM_tft.Init();
 
   // start Web Server
   PM_OTA_Web_Srv_setup(IS_WEB_SERIAL_ACTIVATED);
@@ -270,8 +265,8 @@ void setup() {
     std::string Display_ErrorNumber = "Error: "+Error.getErrorNumberStr();
     std::string Display_ErrorMessage = Error.getDisplayMsg();
     LOG_E(TAG, "%s",Display_ErrorMessage.c_str());
-    tft.Clear();
-    tft.PrintError(Display_ErrorNumber ,Display_ErrorMessage);
+    PM_tft.Clear();
+    PM_tft.PrintError(Display_ErrorNumber ,Display_ErrorMessage);
     for ( ;; ) {} //infinite loop as the configuration could not be wrong
   }
 
@@ -281,8 +276,8 @@ void setup() {
     std::string Display_ErrorNumber = "Error: " + Error.getErrorNumberStr();
     std::string Display_ErrorMessage = Error.getDisplayMsg();
     LOG_E(TAG, "%s",Display_ErrorMessage.c_str());
-    tft.Clear();
-    tft.PrintError(Display_ErrorNumber ,Display_ErrorMessage);
+    PM_tft.Clear();
+    PM_tft.PrintError(Display_ErrorNumber ,Display_ErrorMessage);
     for ( ;; ) {} //infinite loop as the configuration could not be wrong
   }
   
