@@ -9,8 +9,8 @@
 
 // Standard library definitions
 #include <Arduino.h>
+#include <SD.h>                    // Library for SD Card management
 #include <SPI.h>                   // Library for SPI management
-#include <LiquidCrystal_I2C.h>     // Library for LCD management
 #include <WiFi.h>                  // Library for WiFi management
 #include <WiFiMulti.h>             // Library for WiFi management
 #include <ESPPerfectTime.h>        // Library for time maangement
@@ -21,7 +21,6 @@
 #include <Preferences.h>           // Library for preference storage management
 #include <PID_v1.h>                // Library for PID controller (Proportional–Integral–Derivative controller)
 #include <time.h>                  // Library for management time
-#include <FreeRTOS.h>
 #include <esp_task_wdt.h>          // ESP task management library
 
 // Project definitions
@@ -35,7 +34,7 @@
 #include "PM_Temperature.h"        // Pool manager temperature management
 #include "PM_Wifi.h"               // Pool manager wifi management
 #include "PM_OTA_Web_Srv.h"        // Pool manager web server management
-#include "PM_LCD.h"                // Pool manager display device management
+#include "PM_TFT.h"                // Pool manager TFT device management
 #include "PM_Screens.h"            // Pool manager screens
 #include "PM_Error.h"              // Pool manager error management
 #include "PM_Utils.h"              // Pool manager utilities
@@ -43,7 +42,7 @@
 #include "PM_Tasks.h"              // Pool manager tasks declarations
 
 // Intantiate the Pool Manager configuration
-PM_Config Pool_Configuration;
+PM_Config  Pool_Configuration;
 
 // To manage time
 RTC_DS3231 rtc;  // RTC device handle
@@ -58,8 +57,8 @@ tm* time_tm;
 // Array of I2C Devices
 static byte I2CDevices[128];
 
-// Instantiate LCD display and a screen template
-PM_LCD lcd(PM_LCD_Device_Addr, PM_LCD_Cols, PM_LCD_Rows);
+// Instantiate TFT display
+PM_TFT tft(SCREEN_WIDTH, SCREEN_HEIGHT, PM_TFT_Led_Pin);
 
 // Instantiate screens
 PM_Screens screens;
@@ -198,7 +197,6 @@ void setup() {
   Log.setTag("*"                   , LOG_LEVEL);
   Log.setTag("PM_Config"           , LOG_LEVEL);
   Log.setTag("PM_I2CScan"          , LOG_LEVEL);
-  Log.setTag("PM_LCD"              , LOG_LEVEL);
   Log.setTag("PM_Log"              , LOG_LEVEL);
   Log.setTag("PM_main"             , LOG_VERBOSE);
   Log.setTag("PM_NVS"              , LOG_LEVEL);
@@ -212,6 +210,7 @@ void setup() {
   Log.setTag("PM_Time_Mngt"        , LOG_LEVEL);
   Log.setTag("PM_Temperature"      , LOG_LEVEL);
   Log.setTag("PM_Wifi"             , LOG_LEVEL);
+  Log.setTag("PM_TFT"              , LOG_LEVEL);
     
   // Log.formatTimestampOff(); // time in milliseconds (if necessary)
   LOG_I(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());
@@ -257,8 +256,8 @@ void setup() {
   pm_measures.LastRebootTimestamp = now;
   PM_NVS_saveParam("LastReboot", (unsigned long)pm_measures.LastRebootTimestamp);
 
-  //Init LCD
-  PM_Display_init();
+  //Init TFT
+  tft.Init();
 
   // start Web Server
   PM_OTA_Web_Srv_setup(IS_WEB_SERIAL_ACTIVATED);
@@ -271,9 +270,8 @@ void setup() {
     std::string Display_ErrorNumber = "Error: "+Error.getErrorNumberStr();
     std::string Display_ErrorMessage = Error.getDisplayMsg();
     LOG_E(TAG, "%s",Display_ErrorMessage.c_str());
-    lcd.clear();
-    lcd.printLine(0, Display_ErrorNumber);
-    lcd.printScrollLine(1, Display_ErrorMessage, 60);
+    tft.Clear();
+    tft.PrintError(Display_ErrorNumber ,Display_ErrorMessage);
     for ( ;; ) {} //infinite loop as the configuration could not be wrong
   }
 
@@ -283,9 +281,8 @@ void setup() {
     std::string Display_ErrorNumber = "Error: " + Error.getErrorNumberStr();
     std::string Display_ErrorMessage = Error.getDisplayMsg();
     LOG_E(TAG, "%s",Display_ErrorMessage.c_str());
-    lcd.clear();
-    lcd.printLine(0, Display_ErrorNumber);
-    lcd.printScrollLine(1, Display_ErrorMessage, 60);
+    tft.Clear();
+    tft.PrintError(Display_ErrorNumber ,Display_ErrorMessage);
     for ( ;; ) {} //infinite loop as the configuration could not be wrong
   }
   
@@ -374,7 +371,7 @@ void setup() {
   xTaskCreatePinnedToCore(PM_Task_GetTemperature,  "PM_Task_GetTemperature",  3072, NULL, 1, nullptr,            app_cpu); // Temperatures measurement
   //xTaskCreatePinnedToCore(PM_Task_OrpRegulation,   "PM_Task_OrpRegulation",   2048, NULL, 1, nullptr,            app_cpu); // ORP regulation loop
   //xTaskCreatePinnedToCore(PM_Task_pHRegulation,    "PM_Task_pHRegulation",    2048, NULL, 1, nullptr,            app_cpu); // pH regulation loop
-  xTaskCreatePinnedToCore(PM_Task_LCD,             "Task_LCD",                3072, NULL, 1, nullptr,            app_cpu);
+  xTaskCreatePinnedToCore(PM_Task_TFT,             "Task_TFT",                3072, NULL, 1, nullptr,            app_cpu);
   xTaskCreatePinnedToCore(PM_Task_WebServer,       "Task_WebServer",          3072, NULL, 1, nullptr,            app_cpu);
   //  xTaskCreatePinnedToCore(PM_Task_MeasuresPublish, "PM_Task_MeasuresPublish", 3072, NULL, 1, &pubMeasTaskHandle, app_cpu); // Measures MQTT publish 
   //  xTaskCreatePinnedToCore(PM_Task_SettingsPublish, "PM_Task_SettingsPublish", 3072, NULL, 1, &pubSetTaskHandle,  app_cpu);  // MQTT Settings publish 
@@ -383,10 +380,10 @@ void setup() {
   LOG_I(TAG, "[memCheck] Stack: %d bytes - Heap: %d bytes",stack_hwm(),freeRam());
 
   // Display the first screen
-  PM_Display_screen_1();
+  //PM_Display_screen_1();
 
   // and the second screen
-  PM_Display_screen_2();
+  //PM_Display_screen_2();
 
   // Start loops tasks
   LOG_I(TAG, "Init done, starting loop tasks");
@@ -406,10 +403,10 @@ void loop(void) {
 // =================================================================================================
 //                              SCREEN DEFINITIONS
 // =================================================================================================
-
+/*
 void PM_Display_init    () {
   std::vector<std::string> screen;
-  /*  
+    
    |--------------------|
    |         1         2|
    |12345678901234567890|
@@ -421,7 +418,7 @@ void PM_Display_init    () {
    |                    | 
    |Yves Gaignard       |
    |--------------------|
-*/ 
+ 
   screen.clear();
   screen.push_back(Project.Name);
   screen.push_back("Version: " + Project.Version);
@@ -442,7 +439,7 @@ void PM_Display_init    () {
 void PM_Display_screen_1() {
   std::vector<std::string> screen;
   std::string DisplayLine;
-   /*  
+     
    |--------------------|
    |         1         2|
    |12345678901234567890|
@@ -454,7 +451,7 @@ void PM_Display_screen_1() {
    |Filter: 12h15 / 16h | 
    |pH-:12.6l Cl:15.2l  |
    |--------------------|
-  */  
+    
   char degreeAsciiChar[2];
   sprintf(degreeAsciiChar, "%c", 176);
 
@@ -493,7 +490,7 @@ void PM_Display_screen_1() {
 
 void PM_Display_screen_2() {
   std::vector<std::string> screen;
-  /*
+  
    |--------------------|
    |         1         2|
    |12345678901234567890|
@@ -505,7 +502,7 @@ void PM_Display_screen_2() {
    |Pump pH-:OFF Cl:OFF | or |Pump pH-:ON  Cl:ON  |
    |Max pH-:20l Cl:20l  |
    |--------------------|
-  */
+  
   screen.clear();
 
   std::string Pressure = PM_itoa((int) (pm_measures.Pressure + 0.5 - (pm_measures.Pressure<0)));
@@ -529,6 +526,7 @@ void PM_Display_screen_2() {
   lcd.backlight();
   lcd.printScreen(screen);
 }
+*/
 // =================================================================================================
 //                              BOARD INFO
 // =================================================================================================

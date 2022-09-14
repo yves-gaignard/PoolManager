@@ -6,13 +6,12 @@
 #define TAG "PM_Tasks_Display"
 
 #include <Arduino.h>
-#include <FreeRTOS.h>
 #include <ESPPerfectTime.h>
 
 #include "PM_Tasks.h"
 #include "PM_Parameters.h"
 #include "PM_Log.h"
-#include "PM_LCD.h"
+#include "PM_TFT.h"
 #include "PM_Config.h"
 #include "PM_Pool_Manager.h"
 
@@ -26,7 +25,7 @@ int     PM_DisplayButton_LastPressed = 0;  // last time it was pressed in millis
 // =================================================================================================
 //                               LCD MANAGEMENT TASK OF POOL MANAGER
 // =================================================================================================
-void PM_Task_LCD       ( void *pvParameters ) {
+void PM_Task_TFT       ( void *pvParameters ) {
   
   while (!startTasks) ;
   vTaskDelay(DT7);                                // Scheduling offset 
@@ -48,6 +47,8 @@ void PM_Task_LCD       ( void *pvParameters ) {
 	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
     LOG_V(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
+    tft.Loop();
+    /*
     // if lcd display button is pressed then set the display ON in case of OFF
     if ( PM_Display_Activation_Request == true) {
       if (lcd.getDisplayState() == false ) {  
@@ -90,6 +91,7 @@ void PM_Task_LCD       ( void *pvParameters ) {
         //LOG_D(TAG, "%s : Display is stopped",timestamp_str);
       }
     }
+    */
     stack_mon(hwm);
     vTaskDelayUntil(&ticktime,period);
   }

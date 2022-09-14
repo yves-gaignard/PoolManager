@@ -8,6 +8,8 @@
 
 // Standard library definitions
 #include <Arduino.h>
+#include <string>
+#include <vector>
 #include "PM_Pool_Manager.h"
 
 // Convert integer to std::string
@@ -56,9 +58,8 @@ static long hexstr2n( const std::string str) {
     }
 }
 
-static std::vector<String> ExtractWordsFromString(const String& Text) {
-  std::vector<String> words;
-  String pushBackVar;
+static void ExtractWordsFromString(const std::string Text, std::vector<std::string>& words) {
+  std::string pushBackVar;
   int start_sub=0;
   int i;
   for (i=0;i<Text.length();i++)
@@ -66,17 +67,56 @@ static std::vector<String> ExtractWordsFromString(const String& Text) {
     if(Text[i]==32)
     {
       if (i > start_sub) {
-        pushBackVar = Text.substring(start_sub, i);
+        pushBackVar = Text.substr(start_sub, i);
         words.push_back(pushBackVar);
       }
       start_sub=i+1;
     }  
   }
   if (start_sub<Text.length()) {
-    pushBackVar = Text.substring(start_sub, Text.length());
+    pushBackVar = Text.substr(start_sub, Text.length());
     words.push_back(pushBackVar);
   }
-  return words;
 }
 
+static bool string_iequals(const std::string& a, const std::string& b)
+{
+    unsigned int sz = a.size();
+    if (b.size() != sz)
+        return false;
+    for (unsigned int i = 0; i < sz; ++i)
+        if (tolower(a[i]) != tolower(b[i]))
+            return false;
+    return true;
+}
+
+static bool string_endsWith(const std::string& str, const std::string& suffix)
+{
+    return str.size() >= suffix.size() && 0 == str.compare(str.size()-suffix.size(), suffix.size(), suffix);
+}
+
+static bool string_startsWith(const std::string& str, const std::string& prefix)
+{
+    return str.size() >= prefix.size() && 0 == str.compare(0, prefix.size(), prefix);
+}
+
+static bool string_endsWith(const std::string& str, const char* suffix, unsigned suffixLen)
+{
+    return str.size() >= suffixLen && 0 == str.compare(str.size()-suffixLen, suffixLen, suffix, suffixLen);
+}
+
+static bool string_endsWith(const std::string& str, const char* suffix)
+{
+    return string_endsWith(str, suffix, std::string::traits_type::length(suffix));
+}
+
+static bool string_startsWith(const std::string& str, const char* prefix, unsigned prefixLen)
+{
+    return str.size() >= prefixLen && 0 == str.compare(0, prefixLen, prefix, prefixLen);
+}
+
+static bool string_startsWith(const std::string& str, const char* prefix)
+{
+    return string_startsWith(str, prefix, std::string::traits_type::length(prefix));
+}
 #endif

@@ -10,8 +10,10 @@
 
 // Standard library definitions
 #include <Arduino.h>
+//#include <vector>
+//#include <string>
 #include <AsyncElegantOTA.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <ArduinoJson.h>          // JSON library
 
 #include "PM_Pool_Manager.h"
@@ -19,6 +21,8 @@
 #include "PM_OTA_Web_Srv.h"
 #include "PM_Utils.h"
 #include <WebSerialLite.h>         // Library to reroute Serial on webserver
+
+#define FileSys LittleFS
 
 AsyncWebServer OTAServer(PM_WebServerPort);
 
@@ -30,14 +34,14 @@ void PM_OTA_Web_Srv_getMeasures(AsyncWebServerRequest *request);
 // Web server setup and start
 void PM_OTA_Web_Srv_setup(boolean isWebSerial) {
 
-  //----------------------------------------------------SPIFFS
-  if(!SPIFFS.begin()) {
-      LOG_E(TAG, "Cannot open SPIFFS....");
+  //----------------------------------------------------FileSys
+  if(!FileSys.begin()) {
+      LOG_E(TAG, "Cannot open LittleFS....");
     return;
   }
 
-  LOG_I(TAG, "List of SPIFFS Files:");
-  File root = SPIFFS.open("/");
+  LOG_I(TAG, "List of Files:");
+  File root = FileSys.open("/");
   File file = root.openNextFile();
 
   while(file)
@@ -52,12 +56,12 @@ void PM_OTA_Web_Srv_setup(boolean isWebSerial) {
   OTAServer.onNotFound(PM_OTA_Web_Srv_notFound);
   OTAServer.on("/w3.css", HTTP_GET, [](AsyncWebServerRequest *request)
   {
-    request->send(SPIFFS, "/w3.css", "text/css");
+    request->send(FileSys, "/w3.css", "text/css");
   });
 
   OTAServer.on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request)
   {
-    request->send(SPIFFS, "/script.js", "text/javascript");
+    request->send(FileSys, "/script.js", "text/javascript");
   });
   
   if (isWebSerial) {
@@ -90,7 +94,7 @@ void PM_OTA_Web_Srv_notFound(AsyncWebServerRequest *request) {
 
 // handler to treat "root URL"
 void PM_OTA_Web_Srv_root(AsyncWebServerRequest *request) {
-  request->send(SPIFFS, "/index.html", "text/html");
+  request->send(FileSys, "/index.html", "text/html");
 }
 
 // handler to treat "GET Temperature"
@@ -174,18 +178,18 @@ void PM_OTA_Web_Srv_getMeasures(AsyncWebServerRequest *request) {
 // =================================================================================================
 void PM_OTA_Web_Srv_recvMsg(uint8_t *data, size_t len){
   WebSerial.println("Received Data...");
-  String d = "";
+  std::string d (data, data+len);
   boolean help = false;
-  for(int i=0; i < len; i++){
-    d += char(data[i]);
-  }
-  std::vector<String> words = ExtractWordsFromString(d);
+
+  std::vector<std::string> words;
+  words.clear();
+  ExtractWordsFromString(d, words);
   if (words.size() > 0 ) {
     //LOG_D(TAG, "words.size: %d", words.size());
     //for (int i=0; i<words.size(); i++) {
     //  LOG_D(TAG, "words[%d]: %s", i, words[i].c_str());
     //}
-    if (words[0].equalsIgnoreCase("log")) { 
+    if (string_iequals(words[0], (std::string)"log")) { 
       //LOG_D(TAG, "words[0] = %s", words[0].c_str());
       if (words.size() == 3 ) { 
         Log.setTag(words[2].c_str(), words[1].c_str());

@@ -56,20 +56,20 @@ static std::vector<PM_FiltrationDuration> PM_FiltrationDuration_Abaqus = {
 static std::vector<PM_FiltrationDuration> PM_FiltrationDuration_Abaqus = {
 // { TempMin , TempMax, FiltrationTime }  
   {-20, 14,  2} ,       //             <14°C  ==>  2 hours
-  { 14, 15,  3} ,       //  >=14°C and <15°C  ==>  3 hours
-  { 15, 16,  4} ,       //  >=15°C and <16°C  ==>  4 hours
-  { 16, 17,  4} ,       //  >=16°C and <17°C  ==>  5 hours
-  { 17, 18,  4} ,       //  >=17°C and <18°C  ==>  6 hours
-  { 18, 19,  4} ,       //  >=18°C and <19°C  ==>  7 hours
-  { 19, 20,  4} ,       //  >=19°C and <20°C  ==>  8 hours
-  { 20, 21,  4} ,       //  >=20°C and <21°C  ==>  9 hours
-  { 21, 22,  4} ,       //  >=21°C and <22°C  ==> 10 hours
-  { 22, 24,  4} ,       //  >=22°C and <24°C  ==> 11 hours
-  { 24, 26,  4} ,       //  >=24°C and <26°C  ==> 12 hours
-  { 26, 28,  4} ,       //  >=26°C and <28°C  ==> 13 hours
-  { 28, 30,  4} ,       //  >=28°C and <30°C  ==> 14 hours
-  { 30, 32,  4} ,       //  >=30°C and <32°C  ==> 15 hours
-  { 32, 99,  4}         //  >=32°C            ==> 16 hours
+  { 14, 15,  2} ,       //  >=14°C and <15°C  ==>  3 hours
+  { 15, 16,  2} ,       //  >=15°C and <16°C  ==>  4 hours
+  { 16, 17,  2} ,       //  >=16°C and <17°C  ==>  5 hours
+  { 17, 18,  2} ,       //  >=17°C and <18°C  ==>  6 hours
+  { 18, 19,  2} ,       //  >=18°C and <19°C  ==>  7 hours
+  { 19, 20,  2} ,       //  >=19°C and <20°C  ==>  8 hours
+  { 20, 21,  2} ,       //  >=20°C and <21°C  ==>  9 hours
+  { 21, 22,  3} ,       //  >=21°C and <22°C  ==> 10 hours
+  { 22, 24,  3} ,       //  >=22°C and <24°C  ==> 11 hours
+  { 24, 26,  3} ,       //  >=24°C and <26°C  ==> 12 hours
+  { 26, 28,  3} ,       //  >=26°C and <28°C  ==> 13 hours
+  { 28, 30,  3} ,       //  >=28°C and <30°C  ==> 14 hours
+  { 30, 32,  3} ,       //  >=30°C and <32°C  ==> 15 hours
+  { 32, 99,  3}         //  >=32°C            ==> 16 hours
 };
 #endif
 

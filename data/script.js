@@ -64,7 +64,8 @@ function refreshControlInfo() {
 		controls.push({ name:"Previous Day Filtration Uptime", value: convertHMS(jsonResponse.PDFUpt)});
 		controls.push({ name:"Previous Day Filtration Target", value: convertHMS(jsonResponse.PDFTrgt)});
 		controls.push({ name:"Reboot Number",                  value: jsonResponse.Reboot});
-		controls.push({ name:"Last Reboot Date",               value: Time_tToDate(jsonResponse.RTime).toLocaleTimeString('fr-FR')});
+		//controls.push({ name:"Last Reboot Date",               value: Time_tToDate(jsonResponse.RTime).toLocaleTimeString('fr-FR')});
+		controls.push({ name:"Last Reboot Date",               value: Time_tToDate(jsonResponse.RTime).toISOString()});
 	}
 
 	let headers = ['Control', 'Status'];
