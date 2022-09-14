@@ -31,13 +31,11 @@
 #include "esp_attr.h"
 #include "esp_sleep.h"
 #include "nvs_flash.h"
-//#include "protocol_examples_common.h"
 #include "esp_sntp.h"
 
 #ifndef INET6_ADDRSTRLEN
 #define INET6_ADDRSTRLEN 48
 #endif
-
 
 extern "C" int setenv (const char *__string, const char *__value, int __overwrite);
 extern "C" void tzset();
@@ -163,9 +161,9 @@ void PM_Time_Mngt_initialize_time(void)
 
 void PM_Time_Mngt_obtain_time(void)
 {
-    ESP_ERROR_CHECK( nvs_flash_init() );
-    //ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK( esp_event_loop_create_default() );
+    //ESP_ERROR_CHECK( nvs_flash_init() );
+    //ESP_ERROR_CHECK( esp_netif_init());
+    //ESP_ERROR_CHECK( esp_event_loop_create_default() );
 
     /**
      * NTP server address could be aquired via DHCP,
@@ -192,7 +190,7 @@ void PM_Time_Mngt_obtain_time(void)
     time_t now = 0;
     struct tm timeinfo = { 0 };
     int retry = 0;
-    const int retry_count = 15;
+    const int retry_count = 30;
     while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
         LOG_I(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
         vTaskDelay(2000 / portTICK_PERIOD_MS);
@@ -294,8 +292,8 @@ std::string PM_Time_Mngt_convertTimeToString(time_t time_in, const char* string_
 * Convert seconds in tm * structure
 */
 tm PM_Time_Mngt_convertSecondsToTm(const ulong seconds) {
-  tm local;
+  tm local_time;
   long l = seconds & LONG_MAX;
-  gmtime_r(&l, &local);
-  return local;
+  gmtime_r(&l, &local_time);
+  return local_time;
 }

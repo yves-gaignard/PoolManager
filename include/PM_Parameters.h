@@ -63,8 +63,11 @@ const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 
 
 // Configuration of the GPIOs
 // ---------------------------
-// Button to activate the LCD display
+// Button to activate the TFT display
 #define PM_DisplayButton_Pin  13
+
+// Pin number to set or not set the LED backlight of the TFT
+#define PM_TFT_Led_Pin        32
 
 // One wire (temperature sensors) is plugged into GPIO 0
 #define ONE_WIRE_BUS           0 
@@ -104,7 +107,7 @@ const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 
 // T4 : PM_Task_GetTemperature
 // T5 : PM_Task_OrpRegulation
 // T6 : PM_Task_pHRegulation
-// T7 : PM_Task_LCD
+// T7 : PM_Task_TFT
 // T8 : PM_Task_WebServer
 // T9 : PM_Task_MeasuresPublish
 // T10: PM_Task_SettingsPublish 
