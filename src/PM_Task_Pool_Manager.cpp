@@ -22,7 +22,7 @@
 void ProcessCommand(char*);
 void StartTime(void);
 void readLocalTime(void);
-void PM_Write_Filtration_UpTime(boolean ForceWrite);
+void PM_Write_UpTime(boolean ForceWrite);
 void PM_FiltrationPumpStart();
 void PM_FiltrationPumpStop();
 void SetPhPID(bool);
@@ -78,7 +78,11 @@ void PM_Task_Pool_Manager(void *pvParameters)
     PhPump.loop();
     ChlPump.loop();
 
-    PM_Write_Filtration_UpTime(false);
+    pm_measures.FilterPumpState   = FiltrationPump.IsRunning();
+    pm_measures.pHMinusPumpState  = PhPump.IsRunning();
+    pm_measures.ChlorinePumpState = ChlPump.IsRunning();
+
+    PM_Write_UpTime(false);
 
     //reset time counters at midnight and send sync request to time server
     now = pftime::time(nullptr); // get current time
@@ -95,7 +99,7 @@ void PM_Task_Pool_Manager(void *pvParameters)
       PM_NVS_saveParam("ChlorinTankFill", pm_measures.ChlorineTankFill);
 
       //First store current uptime of the period of the filtration pump in Eeprom
-      PM_Write_Filtration_UpTime(true);
+      PM_Write_UpTime(true);
      
       //Save current uptime and target filtration of the day in the previous day info
       pm_measures.PreviousDayFiltrationUptime= pm_measures.DayFiltrationUptime;
@@ -123,6 +127,12 @@ void PM_Task_Pool_Manager(void *pvParameters)
       pm_measures.DayFiltrationUptime = 0;
       PM_NVS_saveParam("DayFiltrUptime", (unsigned long)pm_measures.DayFiltrationUptime);
       LOG_I(TAG, "DayFiltrUptime = %d", pm_measures.DayFiltrationUptime);
+
+      // reset the pH and Orp pump Uptime
+      pm_measures.pHPumpUptime = 0;
+      PM_NVS_saveParam("pHPumpUptime", (unsigned long)pm_measures.pHPumpUptime);
+      pm_measures.OrpPumpUptime = 0;
+      PM_NVS_saveParam("OrpPumpUptime", (unsigned long)pm_measures.OrpPumpUptime);
       
       // Compute next period of filtration for this new day
       PM_ComputeNextFiltrationPeriods();   
@@ -167,7 +177,7 @@ void PM_Task_Pool_Manager(void *pvParameters)
       SetPhPID(false);
       SetOrpPID(false);
 
-      PM_Write_Filtration_UpTime(true);
+      PM_Write_UpTime(true);
 
       // stop the filtration
       PM_FiltrationPumpStop();
@@ -186,7 +196,7 @@ void PM_Task_Pool_Manager(void *pvParameters)
     //Outside regular filtration hours and if in AntiFreezeFiltering mode but Air temperature rose back above 2.0deg, stop filtration
     if (pm_measures.AutoMode && FiltrationPump.IsRunning() && ((now < pm_measures.PeriodFiltrationStartTime) || (now > pm_measures.PeriodFiltrationEndTime)) && AntiFreezeFiltering && (pm_measures.OutAirTemp > 2.0)) {
       LOG_I(TAG, " !!!!! --- Stop filtration due to end of antifreeze --- !!!!!");
-      PM_Write_Filtration_UpTime(true);
+      PM_Write_UpTime(true);
 
       // stop the filtration
       PM_FiltrationPumpStop();
@@ -200,7 +210,7 @@ void PM_Task_Pool_Manager(void *pvParameters)
     //If filtration pump has been running for over 45secs but pressure is still low, stop the filtration pump, something is wrong, set error flag
     if (FiltrationPump.IsRunning() && ((millis() - FiltrationPump.LastStartTime) > 45000) && (pm_measures.Pressure < pm_measures.PressureMedThreshold)) {
       LOG_I(TAG, " !!!!! --- Stop filtration as the pressure is still low --- !!!!!");
-      PM_Write_Filtration_UpTime(true);
+      PM_Write_UpTime(true);
 
       // stop the filtration
       PM_FiltrationPumpStop();
@@ -212,7 +222,7 @@ void PM_Task_Pool_Manager(void *pvParameters)
     // Over-pressure error
     if (pm_measures.Pressure > pm_measures.PressureHighThreshold) {
       LOG_I(TAG, " !!!!! --- Stop filtration as the pressure is TOO HIGH --- !!!!!");
-      PM_Write_Filtration_UpTime(true);
+      PM_Write_UpTime(true);
 
       // stop the filtration
       PM_FiltrationPumpStop();
@@ -243,7 +253,7 @@ void PM_Task_Pool_Manager(void *pvParameters)
   }
 }
 
-void PM_Write_Filtration_UpTime(boolean ForceWrite) {
+void PM_Write_UpTime(boolean ForceWrite) {
 
   LOG_V(TAG, "FiltrationPump.IsRunning() = %d", FiltrationPump.IsRunning());
   if(FiltrationPump.IsRunning() ) {  
@@ -257,6 +267,34 @@ void PM_Write_Filtration_UpTime(boolean ForceWrite) {
       LastWrittenUpTime = now;
     }
     LOG_V(TAG, "DayFiltrationUptime = %d", pm_measures.DayFiltrationUptime);
+  }
+
+  LOG_V(TAG, "PhPump.IsRunning() = %d", PhPump.IsRunning());
+  if(PhPump.IsRunning() ) {  
+    pm_measures.pHPumpUptime = (PhPump.UpTime + 500) / 1000 ; // round milliseconds to seconds
+  
+    // write on flash only every "FrequencyWriteUpTime" seconds or if it has been requested with ForceWrite to save flash memory
+    now = pftime::time(nullptr); // get current time
+    if ( ForceWrite || now > LastWrittenUpTime + FrequencyWriteUpTime) { 
+      LOG_I(TAG, "Write pHPumpUptime: %d with PhPump.UpTime = %d , LastWrittenUpTime = %d", pm_measures.pHPumpUptime, PhPump.UpTime, LastWrittenUpTime);
+      PM_NVS_saveParam("pHPumpUptime", (unsigned long)pm_measures.pHPumpUptime);
+      LastWrittenUpTime = now;
+    }
+    LOG_V(TAG, "pHPumpUptime = %d", pm_measures.pHPumpUptime);
+  }
+
+  LOG_V(TAG, "ChlPump.IsRunning() = %d", ChlPump.IsRunning());
+  if(ChlPump.IsRunning() ) {  
+    pm_measures.OrpPumpUptime = (ChlPump.UpTime + 500) / 1000 ; // round milliseconds to seconds
+  
+    // write on flash only every "FrequencyWriteUpTime" seconds or if it has been requested with ForceWrite to save flash memory
+    now = pftime::time(nullptr); // get current time
+    if ( ForceWrite || now > LastWrittenUpTime + FrequencyWriteUpTime) { 
+      LOG_I(TAG, "Write OrpPumpUptime: %d with ChlPump.UpTime = %d , LastWrittenUpTime = %d", pm_measures.OrpPumpUptime, PhPump.UpTime, LastWrittenUpTime);
+      PM_NVS_saveParam("OrpPumpUptime", (unsigned long)pm_measures.OrpPumpUptime);
+      LastWrittenUpTime = now;
+    }
+    LOG_V(TAG, "OrpPumpUptime = %d", pm_measures.OrpPumpUptime);
   }
 }
 

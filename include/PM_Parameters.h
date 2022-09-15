@@ -142,9 +142,10 @@ const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 
 
 // Default date & time format
 // ---------------------------
-const char PM_HourMinFormat[6]    ="%Hh%M";
-const char PM_LocalTimeFormat[18] ="%Y-%m-%d %H:%M:%S";
-const char PM_UTCTimeFormat[19]   ="%Y-%m-%dT%H:%M:%SZ";
+const char PM_HourMinFormat[6]     ="%Hh%M";
+const char PM_HourFormat[4]        ="%Hh";
+const char PM_LocalTimeFormat[18]  ="%Y-%m-%d %H:%M:%S";
+const char PM_UTCTimeFormat[19]    ="%Y-%m-%dT%H:%M:%SZ";
 
 // Default time zone
 // ---------------------------
@@ -154,7 +155,10 @@ const char PM_TimeZone[60] = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; // 
 // TFT display parameters
 // ----------------------
 // duration of screen inactivity before backlight off (in seconds)
-#define TFT_NO_TOUCH_TIMEOUT 30 
+#define TFT_NO_TOUCH_TIMEOUT 60
+
+// frequency of screen refresh (in seconds)
+#define TFT_SCREEN_REFRESH 1
 
 // Precision of temperature sensors
 //----------------------------------

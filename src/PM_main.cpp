@@ -106,6 +106,8 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   0,     // time_t  PeriodFiltrationEndTime;        // Next period end time of the filtration
   0,     // time_t  PreviousDayFiltrationUptime;    // Filtration Duration of the previous day
   0,     // time_t  PreviousDayFiltrationTarget;    // Target Filtration duration of the previous day
+  0,     // time_t  pHPumpUptime;                   // pH pump uptime since the begin of the day
+  0,     // time_t  OrpPumpUptime;                  // ORP pump uptime since the begin of the day
   0,     // time_t  LastRebootTimestamp;            // Timestamp of the last reboot
   PM_pH_Pump_Flow_Rate,       // float   pHMinusFlowRate;    // Flow rate of pH Minus liquid injected (liter per hour)
   PM_Chlorine_Pump_Flow_Rate, // float   ChlorineFlowRate;   // Flow rate of Chlorine liquid injected (liter per hour)
@@ -142,11 +144,11 @@ PM_Pump ChlPump(CHL_PUMP_Pin, CHL_PUMP_Pin, NO_LEVEL, FILTRATION_PUMP_Pin, pm_me
 PID pHPID(&pm_measures.pHValue, &pm_measures.pHPIDOutput, &pm_measures.pH_SetPoint, pm_measures.pH_Kp, pm_measures.pH_Ki, pm_measures.pH_Kd, pHPID_DIRECTION);
 PID OrpPID(&pm_measures.OrpValue, &pm_measures.OrpPIDOutput, &pm_measures.Orp_SetPoint, pm_measures.Orp_Kp, pm_measures.Orp_Ki, pm_measures.Orp_Kd, OrpPID_DIRECTION);
 
-// To manage the connection on Wifi
-boolean IsWifiConnected   = false;
-
 // To manage wifi between multiple networks
 WiFiMulti wifiMulti;
+
+// To manage the connection on Wifi
+boolean IsWifiConnected   = false;
 
 // Mutex to share access to I2C bus among two tasks: AnalogPoll and StatusLights
 static SemaphoreHandle_t I2CMutex;
@@ -366,8 +368,8 @@ void setup() {
   xTaskCreatePinnedToCore(PM_Task_GetTemperature,  "PM_Task_GetTemperature",  3072, NULL, 1, nullptr,            app_cpu); // Temperatures measurement
   //xTaskCreatePinnedToCore(PM_Task_OrpRegulation,   "PM_Task_OrpRegulation",   2048, NULL, 1, nullptr,            app_cpu); // ORP regulation loop
   //xTaskCreatePinnedToCore(PM_Task_pHRegulation,    "PM_Task_pHRegulation",    2048, NULL, 1, nullptr,            app_cpu); // pH regulation loop
-  xTaskCreatePinnedToCore(PM_Task_TFT,             "Task_TFT",                3072, NULL, 1, nullptr,            app_cpu);
-  xTaskCreatePinnedToCore(PM_Task_WebServer,       "Task_WebServer",          3072, NULL, 1, nullptr,            app_cpu);
+  xTaskCreatePinnedToCore(PM_Task_TFT,             "PM_Task_TFT",             3072, NULL, 1, nullptr,            app_cpu);
+  xTaskCreatePinnedToCore(PM_Task_WebServer,       "PM_Task_WebServer",       3072, NULL, 1, nullptr,            app_cpu);
   //  xTaskCreatePinnedToCore(PM_Task_MeasuresPublish, "PM_Task_MeasuresPublish", 3072, NULL, 1, &pubMeasTaskHandle, app_cpu); // Measures MQTT publish 
   //  xTaskCreatePinnedToCore(PM_Task_SettingsPublish, "PM_Task_SettingsPublish", 3072, NULL, 1, &pubSetTaskHandle,  app_cpu);  // MQTT Settings publish 
 

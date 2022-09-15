@@ -54,13 +54,18 @@
 #define C_WHITE         0xFFFF
 
 class PM_TFT {
+
+  enum PM_SCREEN_NAME { SCR_ERRORS, SCR_MEASURES, SCR_CALIBS, SCR_SWITCHES, SCR_SETTINGS };
+
   private:
-    TFT_eSPI*     _pTFT;
-    int16_t       _TFT_Wide;
-    int16_t       _TFT_Height;
-    u_int8_t      _TFT_Led_Pin;
-    unsigned long _lastTouchTime;
-    bool          _Backlight;
+    TFT_eSPI*      _pTFT;
+    int16_t        _TFT_Wide;
+    int16_t        _TFT_Height;
+    u_int8_t       _TFT_Led_Pin;
+    unsigned long  _lastTouchTime;
+    bool           _Backlight;
+    PM_SCREEN_NAME _currentScreen = SCR_ERRORS;
+    unsigned long  _lastScreenRefresh;
   
 
   public:
@@ -80,7 +85,8 @@ class PM_TFT {
     void PrintCalibsScreen();
     void PrintSettingsScreen();
     void PrintScreenHeader();
-    int16_t ImageDraw(int16_t _xpos, int16_t _ypos, const std::string& filename);
+    int16_t ImageDraw(const int16_t xpos, const int16_t ypos, const std::string& filename);
+    int16_t ImageDraw(const int16_t xpos, const int16_t ypos, const char* filename);
     void CalibrationScreen();
 
     static void *  pngOpen(const char *filename, int32_t *size);

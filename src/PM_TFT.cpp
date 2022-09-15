@@ -12,6 +12,7 @@
 #include <FS.h>
 #include <LittleFS.h>
 #include <PNGdec.h>                // Include the PNG decoder library
+#include <ESPPerfectTime.h>        // Library for time maangement
 
 #include "PM_TFT.h"                // Pool manager TFT management
 #include "PM_Log.h"                // Pool manager log management
@@ -93,6 +94,7 @@ void PM_TFT::Init(void) {
 #endif
   // Print the Pool Manager Home screen with measure
   PrintMeasuresScreen();
+  _lastScreenRefresh = millis();
   LOG_I(TAG, "TFT Initialisation done.");
 }
 
@@ -168,65 +170,116 @@ void PM_TFT::Loop(void)
       PrintSettingsScreen();
     }
   }
+
+  if (_Backlight && (currentTime > (_lastScreenRefresh + TFT_SCREEN_REFRESH*1000)) ) {
+    if      (_currentScreen == SCR_MEASURES) { PrintMeasuresScreen(); }
+    else if (_currentScreen == SCR_CALIBS  ) { PrintCalibsScreen(); }
+    else if (_currentScreen == SCR_SWITCHES) { PrintSwitchesScreen(); }
+    else if (_currentScreen == SCR_SETTINGS) { PrintSettingsScreen(); }
+    _lastScreenRefresh = millis();
+  }
+  
 }
 
 //====================================================================================
 //                               Measures Screen
 //====================================================================================
 void PM_TFT::PrintMeasuresScreen() {
-  // Display the empty page
-  ImageDraw(0, 0, (std::string)HOME_MEASURES);    // (480x320)
-  
+  tm * time_tm;
+  char timestamp_str[20];
+  std::string pngName;
+
   // Select font color
   _pTFT->setTextColor(C_TURQUOISE, C_BLACK);
+
+  // redraw completely the screen only if needed
+  if ( _currentScreen != SCR_MEASURES ) {
+    // Display the empty page
+    ImageDraw(0, 0, (std::string)HOME_MEASURES);    // (480x320)
+  
+    // Display the pH
+    _pTFT->drawString("pH"   ,  15,  50, 4); 
+    _pTFT->drawString("(7.2)",  15, 115, 4);  // minimum valid pH Value
+    _pTFT->drawString("(7.8)", 180,  50, 4);  // minimum valid pH Value
+
+    // Display the ORP
+    _pTFT->drawString("ORP"  , 250,  50, 4); 
+    _pTFT->drawString("mV"   , 410,  92, 4);  // ORP units
+    _pTFT->drawString("(550)", 250, 115, 4);  // minimum valid ORP Value
+    _pTFT->drawString("(750)", 420,  50, 4);  // minimum valid ORP Value
+
+    // Display the temperatures and the filtration pressure
+    _pTFT->drawString("Water"    ,  10, 156, 4);
+    _pTFT->drawString("o"        , 152, 150, 2);
+    _pTFT->drawString("Air In"   ,  10, 189, 4); 
+    _pTFT->drawString("o"        , 152, 183, 2);
+    _pTFT->drawString("Air Out"  ,  10, 222, 4); 
+    _pTFT->drawString("o"        , 152, 219, 2);
+    _pTFT->drawString("Press.  " ,  10, 255, 4); 
+    _pTFT->drawString("b"        , 152, 260, 2);
+
+    // Display Pump state
+    _pTFT->drawString("Pumps / Uptime / Tank", 220, 156, 4);
+    _pTFT->drawString("Filtr."   , 175, 189, 4);
+    _pTFT->drawString("pH-"      , 175, 222, 4); 
+    _pTFT->drawString("Chl"      , 175, 255, 4); 
+  }
 
   // Display header of the page
   PrintScreenHeader();
 
   // Display the pH
-  _pTFT->drawString("pH"   ,  15,  50, 4); 
-  _pTFT->drawFloat ( 7.4, 1,  90,  75, 6);  // current pH Value
-  _pTFT->drawString("(7.2)",  15, 115, 4);  // minimum valid pH Value
-  _pTFT->drawString("(7.8)", 180,  50, 4);  // minimum valid pH Value
+  _pTFT->drawFloat (pm_measures.pHValue, 1,  90,  75, 6);  // current pH Value
 
   // Display the ORP
-  _pTFT->drawString("ORP"  , 250,  50, 4); 
-  _pTFT->drawNumber( 650,    320,  75, 6);  // current ORP Value
-  _pTFT->drawString("mV"   , 410,  92, 4);  // ORP units
-  _pTFT->drawString("(550)", 250, 115, 4);  // minimum valid ORP Value
-  _pTFT->drawString("(750)", 420,  50, 4);  // minimum valid ORP Value
+  _pTFT->drawNumber(pm_measures.OrpValue,    320,  75, 6);  // current ORP Value
 
   // Display the temperatures
-  _pTFT->drawString("Water"    ,  10, 156, 4);
-  _pTFT->drawFloat ( 28.2, 1   , 100, 156, 4);  // current water temperature
-  _pTFT->drawString("o"        , 152, 150, 2);
-  _pTFT->drawString("Air In"   ,  10, 189, 4); 
-  _pTFT->drawFloat ( 29.7, 1   , 100, 189, 4);  // current Indoor Air temperature
-  _pTFT->drawString("o"        , 152, 183, 2);
-  _pTFT->drawString("Air Out"  ,  10, 222, 4); 
-  _pTFT->drawFloat ( 16.4, 1   , 100, 222, 4);  // current Outdoor Air temperature
-  _pTFT->drawString("o"        , 152, 219, 2);
-  _pTFT->drawString("Press.  " ,  10, 255, 4); 
-  _pTFT->drawFloat ( 0.8, 1    , 112, 255, 4);  // current pressure
-  _pTFT->drawString("b"        , 152, 260, 2);
+  _pTFT->drawFloat (pm_measures.WaterTemp, 1   , 100, 156, 4);  // current water temperature
+  _pTFT->drawFloat (pm_measures.InAirTemp, 1   , 100, 189, 4);  // current Indoor Air temperature
+  _pTFT->drawFloat (pm_measures.OutAirTemp, 1   , 100, 222, 4);  // current Outdoor Air temperature
+  _pTFT->drawFloat (pm_measures.Pressure , 1    , 112, 255, 4);  // current pressure
 
   // Display Pump state
-  _pTFT->drawString("Pumps / Uptime / Tank", 220, 156, 4);
-  _pTFT->drawString("Filtr."   , 175, 189, 4);
-  ImageDraw(250, 190, (std::string)ONS_SMALL);  // (36x20)
-  _pTFT->drawString("12h24   /  16h" , 320, 189, 4);
-  
-  _pTFT->drawString("pH-"      , 175, 222, 4); 
-  ImageDraw(250, 223, (std::string)ONS_SMALL);  // (36x20)
-  _pTFT->drawString("0h37"     , 334, 222, 4);
+  if (pm_measures.FilterPumpState) { pngName = (std::string)ONS_SMALL; }
+  else                             { pngName = (std::string)OFFS_SMALL; }
+  ImageDraw(250, 190, pngName);
+  if (pm_measures.pHMinusPumpState) { pngName = (std::string)ONS_SMALL; }
+  else                              { pngName = (std::string)OFFS_SMALL; }
+  ImageDraw(250, 223, pngName); 
+  if (pm_measures.ChlorinePumpState) { pngName = (std::string)ONS_SMALL; }
+  else                               { pngName = (std::string)OFFS_SMALL; }
+  ImageDraw(250, 256, pngName); 
 
-  _pTFT->drawString("Chl"      , 175, 255, 4); 
-  ImageDraw(250, 256, (std::string)OFFS_SMALL); // (36x20)
-  _pTFT->drawString("0h22"     , 334, 255, 4);
+  // Display Filtration time
+  std::string DurationTime;
+  time_tm = gmtime(&pm_measures.DayFiltrationUptime);
+	strftime(timestamp_str, sizeof(timestamp_str), PM_HourMinFormat, time_tm);
+  //std::string DayFiltrationUptime = timestamp_str;
+  DurationTime=timestamp_str;
+  DurationTime+="   /  ";
+  time_tm = gmtime(&pm_measures.DayFiltrationTarget);
+	strftime(timestamp_str, sizeof(timestamp_str), PM_HourFormat, time_tm);
+  //std::string DayFiltrationTarget = timestamp_str;
+  DurationTime+=timestamp_str;
+  //DurationTime=DayFiltrationUptime + "   /  " + DayFiltrationTarget;
+  _pTFT->drawString(DurationTime.c_str(), 320, 189, 4);
+  
+  // Display pH pump uptime
+  time_tm = gmtime(&pm_measures.pHPumpUptime);
+	strftime(timestamp_str, sizeof(timestamp_str), PM_HourMinFormat, time_tm);
+  _pTFT->drawString(timestamp_str, 320, 222, 4);
+
+  // Display Chlorine pump uptime
+  time_tm = gmtime(&pm_measures.OrpPumpUptime);
+	strftime(timestamp_str, sizeof(timestamp_str), PM_HourMinFormat, time_tm);
+  _pTFT->drawString(timestamp_str, 320, 255, 4);
 
   // Display Tank Fill & usage time
   _pTFT->drawString("20 %"   , 424, 222, 4);
   _pTFT->drawString("100 %"  , 410, 255, 4);
+
+  _currentScreen = SCR_MEASURES;
 }
 
 //====================================================================================
@@ -278,18 +331,35 @@ void PM_TFT::PrintScreenHeader() {
   // Select font color
   _pTFT->setTextColor(C_TURQUOISE, C_BLACK);
   // Display date and time
-  _pTFT->drawString("2022-09-23 20h49",  270,  10, 4);
+  tm * time_tm;
+  char timestamp_str[20];
+  suseconds_t usec;
+  now = pftime::time(nullptr); // get current time
+  time_tm = pftime::localtime(&now, &usec);  // Change in localtime
+  strftime(timestamp_str, sizeof(timestamp_str), "%Y-%m-%d  %H:%M", time_tm);
+  _pTFT->drawString(timestamp_str,  270,  10, 4);
+
   // Display Wifi state
-  ImageDraw(210, 4, (std::string)ICON_WIFI_ON); 
+  if (IsWifiConnected) {
+    ImageDraw(210, 4, (std::string)ICON_WIFI_ON); 
+  } 
+  else {
+    ImageDraw(210, 4, (std::string)ICON_WIFI_OFF); 
+  } 
 }
 
 //====================================================================================
 //                            Draw any PNG image on screen
 //====================================================================================
-int16_t PM_TFT::ImageDraw(int16_t _xpos, int16_t _ypos, const std::string& filename) {
+int16_t PM_TFT::ImageDraw(const int16_t x_pos, const int16_t y_pos, const char* filename) {
+  std::string Str_filename = filename;
+  return ImageDraw(x_pos, y_pos, Str_filename);
+}
+
+int16_t PM_TFT::ImageDraw(const int16_t x_pos, const int16_t y_pos, const std::string& filename) {
   int16_t rc = 0;
-  xpos=_xpos;
-  ypos=_ypos;
+  xpos=x_pos;
+  ypos=y_pos;
   fs::File file = LittleFS.open(filename.c_str());
   if (!file.isDirectory() && string_endsWith(filename, ".png")) {
     // Pass support callback function names to library

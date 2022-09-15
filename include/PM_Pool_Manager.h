@@ -14,6 +14,7 @@
 #include <PID_v1.h>             // Library for PID controller (Proportional–Integral–Derivative controller)
 #include <ADS1115.h>
 #include <Preferences.h>
+#include <WiFiMulti.h>             // Library for WiFi management
 
 #include "PM_Log.h"
 #include "PM_TFT.h"
@@ -27,6 +28,12 @@ extern PM_TFT PM_tft;
 // NVS Non Volatile SRAM (eqv. EEPROM)
 extern Preferences nvs;   
 extern PM_SwimmingPoolMeasures     pm_measures;
+
+// To manage wifi between multiple networks
+extern WiFiMulti wifiMulti;
+
+// To manage the connection on Wifi
+extern boolean IsWifiConnected;
 
 //PIDs instances
 extern PID pHPID;
@@ -61,7 +68,7 @@ extern bool EmergencyStopFiltPump;                     // Filtering pump stopped
 
 extern void PM_ComputeNextFiltrationPeriods();
 
-extern void PM_Write_Filtration_UpTime();
+extern void PM_Write_UpTime();
 extern void PM_FiltrationPumpStart();
 extern void PM_FiltrationPumpStop();
 
