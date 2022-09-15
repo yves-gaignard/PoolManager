@@ -198,7 +198,7 @@ void setup() {
   Log.setTag("PM_Log"              , LOG_LEVEL);
   Log.setTag("PM_main"             , LOG_VERBOSE);
   Log.setTag("PM_NVS"              , LOG_LEVEL);
-  Log.setTag("PM_OTA_Web_Srv"      , LOG_DEBUG);
+  Log.setTag("PM_OTA_Web_Srv"      , LOG_LEVEL);
   Log.setTag("PM_Pump"             , LOG_LEVEL);
   Log.setTag("PM_Task_Pool_Manager", LOG_DEBUG);
   Log.setTag("PM_Tasks_Display"    , LOG_LEVEL);
@@ -207,7 +207,7 @@ void setup() {
   Log.setTag("PM_Time_Mngt"        , LOG_LEVEL);
   Log.setTag("PM_Temperature"      , LOG_LEVEL);
   Log.setTag("PM_Wifi"             , LOG_LEVEL);
-  Log.setTag("PM_TFT"              , LOG_DEBUG);
+  Log.setTag("PM_TFT"              , LOG_LEVEL);
     
   // Log.formatTimestampOff(); // time in milliseconds (if necessary)
   LOG_I(TAG, "Starting Project: [%s]  Version: [%s]",Project.Name.c_str(), Project.Version.c_str());

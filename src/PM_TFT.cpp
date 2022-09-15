@@ -67,7 +67,7 @@ void PM_TFT::Init(void) {
   while (fs::File file = root.openNextFile()) {
     std::string strname = file.name();
     strname = "/" + strname;
-    LOG_I(TAG, "File: %s", strname.c_str());
+    LOG_D(TAG, "File: %s", strname.c_str());
   }
   root.close();
 
@@ -197,6 +197,9 @@ void PM_TFT::PrintMeasuresScreen() {
     // Display the empty page
     ImageDraw(0, 0, (std::string)HOME_MEASURES);    // (480x320)
   
+    // Coordinate are relatives to TOP-LEFT
+    _pTFT->setTextDatum(TL_DATUM);
+
     // Display the pH
     _pTFT->drawString("pH"   ,  15,  50, 4); 
     _pTFT->drawString("(7.2)",  15, 115, 4);  // minimum valid pH Value
@@ -219,8 +222,9 @@ void PM_TFT::PrintMeasuresScreen() {
     _pTFT->drawString("b"        , 152, 260, 2);
 
     // Display Pump state
-    _pTFT->drawString("Pumps / Uptime / Tank", 220, 156, 4);
+    _pTFT->drawString("Pump / Uptime / Tank", 220, 156, 4);
     _pTFT->drawString("Filtr."   , 175, 189, 4);
+    _pTFT->drawString("/"        , 390, 189, 4);
     _pTFT->drawString("pH-"      , 175, 222, 4); 
     _pTFT->drawString("Chl"      , 175, 255, 4); 
   }
@@ -228,17 +232,23 @@ void PM_TFT::PrintMeasuresScreen() {
   // Display header of the page
   PrintScreenHeader();
 
+  // Coordinate are relatives to TOP-RIGHT
+  _pTFT->setTextDatum(TR_DATUM);
+
   // Display the pH
-  _pTFT->drawFloat (pm_measures.pHValue, 1,  90,  75, 6);  // current pH Value
+  _pTFT->drawFloat (pm_measures.pHValue, 1,  160,  75, 6);  // current pH Value
 
   // Display the ORP
-  _pTFT->drawNumber(pm_measures.OrpValue,    320,  75, 6);  // current ORP Value
+  _pTFT->drawNumber(pm_measures.OrpValue,    405,  75, 6);  // current ORP Value
+
+  // Coordinate are relatives to TOP-RIGHT
+  _pTFT->setTextDatum(TR_DATUM);
 
   // Display the temperatures
-  _pTFT->drawFloat (pm_measures.WaterTemp, 1   , 100, 156, 4);  // current water temperature
-  _pTFT->drawFloat (pm_measures.InAirTemp, 1   , 100, 189, 4);  // current Indoor Air temperature
-  _pTFT->drawFloat (pm_measures.OutAirTemp, 1   , 100, 222, 4);  // current Outdoor Air temperature
-  _pTFT->drawFloat (pm_measures.Pressure , 1    , 112, 255, 4);  // current pressure
+  _pTFT->drawFloat (pm_measures.WaterTemp, 1   , 150, 156, 4);  // current water temperature
+  _pTFT->drawFloat (pm_measures.InAirTemp, 1   , 150, 189, 4);  // current Indoor Air temperature
+  _pTFT->drawFloat (pm_measures.OutAirTemp,1   , 150, 222, 4);  // current Outdoor Air temperature
+  _pTFT->drawFloat (pm_measures.Pressure , 1   , 150, 255, 4);  // current pressure
 
   // Display Pump state
   if (pm_measures.FilterPumpState) { pngName = (std::string)ONS_SMALL; }
@@ -252,33 +262,34 @@ void PM_TFT::PrintMeasuresScreen() {
   ImageDraw(250, 256, pngName); 
 
   // Display Filtration time
-  std::string DurationTime;
   time_tm = gmtime(&pm_measures.DayFiltrationUptime);
 	strftime(timestamp_str, sizeof(timestamp_str), PM_HourMinFormat, time_tm);
-  //std::string DayFiltrationUptime = timestamp_str;
-  DurationTime=timestamp_str;
-  DurationTime+="   /  ";
+  _pTFT->drawString(timestamp_str, 380, 189, 4);
+
   time_tm = gmtime(&pm_measures.DayFiltrationTarget);
 	strftime(timestamp_str, sizeof(timestamp_str), PM_HourFormat, time_tm);
-  //std::string DayFiltrationTarget = timestamp_str;
-  DurationTime+=timestamp_str;
-  //DurationTime=DayFiltrationUptime + "   /  " + DayFiltrationTarget;
-  _pTFT->drawString(DurationTime.c_str(), 320, 189, 4);
+  _pTFT->drawString(timestamp_str, 450, 189, 4);
   
   // Display pH pump uptime
   time_tm = gmtime(&pm_measures.pHPumpUptime);
 	strftime(timestamp_str, sizeof(timestamp_str), PM_HourMinFormat, time_tm);
-  _pTFT->drawString(timestamp_str, 320, 222, 4);
+  _pTFT->drawString(timestamp_str, 380, 222, 4);
 
   // Display Chlorine pump uptime
   time_tm = gmtime(&pm_measures.OrpPumpUptime);
 	strftime(timestamp_str, sizeof(timestamp_str), PM_HourMinFormat, time_tm);
-  _pTFT->drawString(timestamp_str, 320, 255, 4);
+  _pTFT->drawString(timestamp_str, 380, 255, 4);
 
   // Display Tank Fill & usage time
-  _pTFT->drawString("20 %"   , 424, 222, 4);
-  _pTFT->drawString("100 %"  , 410, 255, 4);
+  std::string pHMinusTankFill = PM_itoa((int) (pm_measures.pHMinusTankFill + 0.5 - (pm_measures.pHMinusTankFill<0)));
+  pHMinusTankFill+=" %";
+  _pTFT->drawString(pHMinusTankFill.c_str()   , 470, 222, 4);
 
+  std::string ChlorineTankFill = PM_itoa((int) (pm_measures.ChlorineTankFill + 0.5 - (pm_measures.ChlorineTankFill<0)));
+  ChlorineTankFill+=" %"; 
+  _pTFT->drawString(ChlorineTankFill.c_str()  , 470, 255, 4);
+
+  // Change the current screen with this one
   _currentScreen = SCR_MEASURES;
 }
 
@@ -286,42 +297,64 @@ void PM_TFT::PrintMeasuresScreen() {
 //                               Switches Screen
 //====================================================================================
 void PM_TFT::PrintSwitchesScreen() {
-  // Display the empty page
-  ImageDraw(0, 0, (std::string)HOME_SWITCHES);    // (480x320)
-  
+
   // Select font color
   _pTFT->setTextColor(C_TURQUOISE, C_BLACK);
-
+  
+  // redraw completely the screen only if needed
+  if ( _currentScreen != SCR_SWITCHES ) {  
+    // Display the empty page
+    ImageDraw(0, 0, (std::string)HOME_SWITCHES);    // (480x320)
+  }
+  
   // Display header of the page
   PrintScreenHeader();
+
+  // Change the current screen with this one
+  _currentScreen = SCR_SWITCHES;
 }
 
 //====================================================================================
 //                               Calibs Screen
 //====================================================================================
 void PM_TFT::PrintCalibsScreen() {
-  // Display the empty page
-  ImageDraw(0, 0, (std::string)HOME_CALIBS);    // (480x320)
-  
+
   // Select font color
   _pTFT->setTextColor(C_TURQUOISE, C_BLACK);
+  
+  // redraw completely the screen only if needed
+  if ( _currentScreen != SCR_CALIBS ) {  
+    // Display the empty page
+    ImageDraw(0, 0, (std::string)HOME_CALIBS);    // (480x320)
+  }  
+
 
   // Display header of the page
   PrintScreenHeader();
+
+  // Change the current screen with this one
+  _currentScreen = SCR_CALIBS;
 }
 
 //====================================================================================
 //                               Settings Screen
 //====================================================================================
 void PM_TFT::PrintSettingsScreen() {
-  // Display the empty page
-  ImageDraw(0, 0, (std::string)HOME_SETTINGS);    // (480x320)
-  
+
   // Select font color
   _pTFT->setTextColor(C_TURQUOISE, C_BLACK);
 
+  // redraw completely the screen only if needed
+  if ( _currentScreen != SCR_SETTINGS ) {  
+    // Display the empty page
+    ImageDraw(0, 0, (std::string)HOME_SETTINGS);    // (480x320)
+  }
+  
   // Display header of the page
   PrintScreenHeader();
+
+  // Change the current screen with this one
+  _currentScreen = SCR_SETTINGS;
 }
 
 //====================================================================================
@@ -330,6 +363,9 @@ void PM_TFT::PrintSettingsScreen() {
 void PM_TFT::PrintScreenHeader() { 
   // Select font color
   _pTFT->setTextColor(C_TURQUOISE, C_BLACK);
+  // Coordinate are relatives to TOP-RIGHT
+  _pTFT->setTextDatum(TR_DATUM);
+
   // Display date and time
   tm * time_tm;
   char timestamp_str[20];
@@ -337,7 +373,7 @@ void PM_TFT::PrintScreenHeader() {
   now = pftime::time(nullptr); // get current time
   time_tm = pftime::localtime(&now, &usec);  // Change in localtime
   strftime(timestamp_str, sizeof(timestamp_str), "%Y-%m-%d  %H:%M", time_tm);
-  _pTFT->drawString(timestamp_str,  270,  10, 4);
+  _pTFT->drawString(timestamp_str,  470,  10, 4);
 
   // Display Wifi state
   if (IsWifiConnected) {

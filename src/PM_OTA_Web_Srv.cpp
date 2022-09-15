@@ -40,13 +40,13 @@ void PM_OTA_Web_Srv_setup(boolean isWebSerial) {
     return;
   }
 
-  LOG_I(TAG, "List of Files:");
+  LOG_D(TAG, "List of Files:");
   File root = FileSys.open("/");
   File file = root.openNextFile();
 
   while(file)
   {
-    LOG_I(TAG, "File: %s", file.name());
+    LOG_D(TAG, "File: %s", file.name());
     file.close();
     file = root.openNextFile();
   }
