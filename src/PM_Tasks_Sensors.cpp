@@ -17,12 +17,13 @@
 #include "PM_Parameters.h"
 
 
-// Setup an ADS1115 instance for analog measurements
+// Setup an DFRobot_ADS1115 instance for analog measurements
 // ---------------------------------------------------
-ADS1115Scanner PM_ads(PM_ADS1115_Device_Addr);  // Address 0x48 is the default
-static float ph_sensor_value;     // pH sensor current value
-static float orp_sensor_value;    // ORP sensor current value
-static float psi_sensor_value;    // PSI sensor current value
+TwoWire PM_ads_address(PM_ADS1115_Device_Addr);
+DFRobot_ADS1115 PM_ads(&PM_ads_address);        // Address 0x48 is the default
+static float ph_sensor_value;                   // pH sensor current value
+static float orp_sensor_value;                  // ORP sensor current value
+static float psi_sensor_value;                  // PSI sensor current value
 
 // Signal filtering library sample buffers
 static RunningMedian samples_WTemp = RunningMedian(11);
@@ -98,11 +99,12 @@ void PM_Task_GetTemperature      ( void *pvParameters ) {
 // =================================================================================================
 void AnalogInit()
 {
-  PM_ads.setSpeed  (ADS1115_SPEED_16SPS);
-  PM_ads.addChannel(ADS1115_CHANNEL0, ADS1115_RANGE_6144);
-  PM_ads.addChannel(ADS1115_CHANNEL1, ADS1115_RANGE_6144);
-  PM_ads.addChannel(ADS1115_CHANNEL2, ADS1115_RANGE_6144);
-  PM_ads.setSamples(3);
+    PM_ads.setAddr_ADS1115(ADS1115_IIC_ADDRESS0);   // 0x48
+    PM_ads.setGain(eGAIN_TWOTHIRDS);   // 2/3x gain
+    PM_ads.setMode(eMODE_SINGLE);       // single-shot mode
+    PM_ads.setRate(eRATE_128);          // 128SPS (default)
+    PM_ads.setOSMode(eOSMODE_SINGLE);   // Set to start a single-conversion
+    PM_ads.init();
 }
 
 void PM_Task_AnalogPoll(void *pvParameters)
@@ -120,10 +122,10 @@ void PM_Task_AnalogPoll(void *pvParameters)
   time_t now;
   suseconds_t usec;
 
-  lockI2C();
-  PM_ads.start();
-  unlockI2C();
-  vTaskDelayUntil(&ticktime,period);
+  //lockI2C();
+  //PM_ads.start();
+  //unlockI2C();
+  //vTaskDelayUntil(&ticktime,period);
   
   for(;;)
   {
@@ -133,17 +135,22 @@ void PM_Task_AnalogPoll(void *pvParameters)
     LOG_V(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
     lockI2C();
-    PM_ads.update();
 
-    if(PM_ads.ready()){                              // all conversions done ?
-      orp_sensor_value = PM_ads.readFilter(0) ;    // ORP sensor current value
-      ph_sensor_value  = PM_ads.readFilter(1) ;    // pH sensor current value
-      psi_sensor_value = PM_ads.readFilter(2) ;    // psi sensor current value
-      PM_ads.start();  
-        
-      //Ph
+    if (PM_ads.checkADS1115()) {
+      ph_sensor_value = PM_ads.readVoltage(PH_SENSOR_ANALOG_Pin); // pH sensor current value
+      LOG_D(TAG,"pH: %10.5f mV", ph_sensor_value);
+      orp_sensor_value = PM_ads.readVoltage(ORP_SENSOR_ANALOG_Pin); // ORP sensor current value
+      //LOG_D(TAG,"pH: %10.5f mV", orp_sensor_value);
+      psi_sensor_value = PM_ads.readVoltage(PRESSURE_SENSOR_ANALOG_Pin); // psi sensor current value
+      //LOG_D(TAG,"pH: %10.5f mV", psi_sensor_value);
+
+      //pH
       samples_Ph.add(ph_sensor_value);          // compute average of pH from center 5 measurements among 11
-      pm_measures.pHValue = (samples_Ph.getAverage(5)*0.1875/1000.)*pm_measures.pHCalibCoeffs0 + pm_measures.pHCalibCoeffs1;
+      // compute average of ORP from last 5 measurements
+      LOG_D(TAG,"samples_Ph: %10.5f", samples_Ph.getAverage(5));
+      //pm_measures.pHValue = (samples_Ph.getAverage(5)*0.1875/1000.)*pm_measures.pHCalibCoeffs0 + pm_measures.pHCalibCoeffs1; // Pool Master
+      pm_measures.pHValue = (samples_Ph.getAverage(5)/1000)*pm_measures.pHCalibCoeffs0 + pm_measures.pHCalibCoeffs1; // Simple formule from phidget 1130
+      //pm_measures.pHValue = (samples_Ph.getAverage(5)*0.1875/1000.)*pm_measures.pHCalibCoeffs0 + pm_measures.pHCalibCoeffs1; // Complex formule from phidget 1130
 
 
 #ifdef SIMU
@@ -173,8 +180,12 @@ void PM_Task_AnalogPoll(void *pvParameters)
 #endif
 
       //ORP
-      samples_Orp.add(orp_sensor_value);                                                                    // compute average of ORP from last 5 measurements
-      pm_measures.OrpValue = (samples_Orp.getAverage(5)*0.1875/1000.)*pm_measures.OrpCalibCoeffs0 + pm_measures.OrpCalibCoeffs1;
+      samples_Orp.add(orp_sensor_value);
+      // compute average of ORP from last 5 measurements
+      //LOG_D(TAG,"samples_Orp: %10.5f", samples_Orp.getAverage(5));
+      // pm_measures.OrpValue = (samples_Orp.getAverage(5)*0.1875/1000.)*pm_measures.OrpCalibCoeffs0 + pm_measures.OrpCalibCoeffs1;   // Pool Master
+      pm_measures.OrpValue = (samples_Orp.getAverage(5)/1000 )*pm_measures.OrpCalibCoeffs0 + pm_measures.OrpCalibCoeffs1; // Simple formule from phidget 1130
+      // pm_measures.OrpValue = (samples_Orp.getAverage(5)*0.1875/1000.)*pm_measures.OrpCalibCoeffs0 + pm_measures.OrpCalibCoeffs1; // Complex formule from phidget 1130
 
 #ifdef SIMU
       if(!init_simu){
@@ -193,10 +204,14 @@ void PM_Task_AnalogPoll(void *pvParameters)
       //PSI (water pressure)
       samples_PSI.add(psi_sensor_value);       
       // compute average of PSI from last 5 measurements
-      pm_measures.Pressure = (samples_PSI.getAverage(5)*0.1875/1000.)*pm_measures.PSICalibCoeffs0 + pm_measures.PSICalibCoeffs1;
+      pm_measures.Pressure = (samples_PSI.getAverage(5)/1000.)*pm_measures.PSICalibCoeffs0 + pm_measures.PSICalibCoeffs1;
 
       LOG_D(TAG,"pH: %5.0f - %4.2f - ORP: %5.0f - %3.0fmV - PSI: %5.0f - %4.2fBar",
         ph_sensor_value,pm_measures.pHValue,orp_sensor_value,pm_measures.OrpValue,psi_sensor_value,pm_measures.Pressure);
+    }
+    else
+    {
+      LOG_E(TAG,"ADS115 disconnected");
     }
     unlockI2C();
 
@@ -208,7 +223,7 @@ void PM_Task_AnalogPoll(void *pvParameters)
     ++n;
     Debug.print(DBG_INFO,"[AnalogPoll] td: %d t_act: %d t_min: %d t_max: %d t_mean: %4.1f",td,t_act,t_min,t_max,t_mean);
     #endif 
-
+ 
     stack_mon(hwm);
     vTaskDelayUntil(&ticktime,period);
   }  

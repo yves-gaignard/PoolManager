@@ -62,8 +62,23 @@ void PM_Task_Pool_Manager(void *pvParameters)
 
   tm * tm_now;
   time_t now;
+  char nowTimestamp_str[20];
+  tm * tm_lastReset;
+  char lastResetTimestamp_str[20];
+
+  // get last day reset timestamp
+  tm_lastReset = pftime::localtime(&pm_measures.LastDayResetTimestamp);
+  strftime(lastResetTimestamp_str, sizeof(lastResetTimestamp_str), PM_DateFormat, tm_lastReset);
+  LOG_I(TAG, "LastDayResetTimestamp: %d", pm_measures.LastDayResetTimestamp);
+  LOG_I(TAG, "LastDayResetTimestamp: %s", lastResetTimestamp_str);
 
   LastWrittenUpTime = pftime::time(nullptr); // get current time
+
+  now = pftime::time(nullptr); // get current time
+  tm_now = pftime::localtime(&now);
+  strftime(nowTimestamp_str, sizeof(nowTimestamp_str), PM_DateFormat, tm_now);
+  LOG_I(TAG, "now      : Date: %s", nowTimestamp_str);
+  LOG_I(TAG, "lastReset: Date: %s", lastResetTimestamp_str);
 
   for(;;)
   {  
@@ -87,9 +102,11 @@ void PM_Task_Pool_Manager(void *pvParameters)
     //reset time counters at midnight and send sync request to time server
     now = pftime::time(nullptr); // get current time
     tm_now = pftime::localtime(&now);
+    strftime(nowTimestamp_str, sizeof(nowTimestamp_str), PM_DateFormat, tm_now);
 
-    if (tm_now->tm_hour == 0 && !DoneForTheDay)
-    {
+    if ( (tm_now->tm_hour == 0 && !DoneForTheDay) // new day and not yet done
+      || (strcmp(nowTimestamp_str, lastResetTimestamp_str) != 0) // or the last reset has not done for this day
+       ) {
       LOG_I(TAG, " !!!!! --- Midnight --- New day parameter computation --- !!!!!");
       
       //First store current Chl and Acid consumptions of the day in Eeprom
@@ -106,7 +123,13 @@ void PM_Task_Pool_Manager(void *pvParameters)
       PM_NVS_saveParam("PDayFiltrUptime", (unsigned long)pm_measures.PreviousDayFiltrationUptime);
       pm_measures.PreviousDayFiltrationTarget= pm_measures.DayFiltrationTarget;
       PM_NVS_saveParam("PDayFiltrTarget", (unsigned long)pm_measures.PreviousDayFiltrationTarget);
-  
+
+      //Save current time in the last day reset timestamp
+      pm_measures.LastDayResetTimestamp = now;
+      PM_NVS_saveParam("LastDayReset", (unsigned long)pm_measures.LastDayResetTimestamp);
+      tm_lastReset = pftime::localtime(&pm_measures.LastDayResetTimestamp);
+      strftime(lastResetTimestamp_str, sizeof(lastResetTimestamp_str), PM_DateFormat, tm_lastReset);
+
       // reset all day's parameters
       FiltrationPump.ResetUpTime();
       PhPump.ResetUpTime();

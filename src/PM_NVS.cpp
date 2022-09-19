@@ -67,6 +67,7 @@ bool PM_NVS_Load() {
   pm_measures.PMVersion                  = nvs.getUChar ("PMVersion"      ,0);
   pm_measures.RebootNumber               = nvs.getUChar ("RebootNumber"   ,0);
   pm_measures.LastRebootTimestamp        = nvs.getULong ("LastReboot"     ,0);
+  pm_measures.LastDayResetTimestamp      = nvs.getULong ("LastDayReset"   ,0);
   pm_measures.AutoMode                   = nvs.getBool  ("AutoMode"       ,true);
   pm_measures.WinterMode                 = nvs.getBool  ("WinterMode"     ,false);
   pm_measures.InAirTemp                  = nvs.getFloat ("InAirTemp"      ,0.0);
@@ -128,7 +129,7 @@ bool PM_NVS_Load() {
   nvs.end();
 
   LOG_D(TAG, "%d", pm_measures.PMVersion);
-  LOG_D(TAG, "%d, %d", pm_measures.RebootNumber, pm_measures.LastRebootTimestamp);
+  LOG_D(TAG, "%d, %d, %d", pm_measures.RebootNumber, pm_measures.LastRebootTimestamp, pm_measures.LastDayResetTimestamp);
   LOG_D(TAG, "%d, %d, %d, %d, %d", pm_measures.AutoMode, pm_measures.WinterMode, pm_measures.pH_RegulationOnOff, pm_measures.Orp_RegulationOnOff, pm_measures.DelayPIDs);
   LOG_D(TAG, "%2.2f, %2.2f, %2.2f,%2.2f", pm_measures.InAirTemp, pm_measures.WaterTemp,pm_measures.OutAirTemp, pm_measures.WaterTempLowThreshold);
   LOG_D(TAG, "%2.2f, %4.0f", pm_measures.pHValue, pm_measures.OrpValue);
@@ -170,6 +171,7 @@ bool PM_NVS_Save() {
        nvs.putUChar ("PMVersion",       pm_measures.PMVersion);
   i += nvs.putUChar ("RebootNumber",    pm_measures.RebootNumber);
   i += nvs.putULong ("LastReboot",      pm_measures.LastRebootTimestamp);
+  i += nvs.putULong ("LastDayReset",    pm_measures.LastDayResetTimestamp);
   i += nvs.putBool  ("AutoMode",        pm_measures.AutoMode);
   i += nvs.putBool  ("WinterMode",      pm_measures.WinterMode);
   i += nvs.putFloat ("InAirTemp",       pm_measures.InAirTemp);

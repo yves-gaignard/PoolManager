@@ -12,7 +12,7 @@
 #include <Arduino.h>
 #include <RTClib.h>
 #include <PID_v1.h>             // Library for PID controller (Proportional–Integral–Derivative controller)
-#include <ADS1115.h>
+#include <DFRobot_ADS1115.h>
 #include <Preferences.h>
 #include <WiFiMulti.h>             // Library for WiFi management
 
@@ -54,7 +54,7 @@ extern time_t     now;  // Current time (global variable)
 extern PM_Temperature PM_TemperatureSensors;
 
 // Instantiate object to manage all other sensors
-extern ADS1115Scanner PM_ads;
+extern DFRobot_ADS1115 PM_ads;
 
 // Various flags
 extern volatile bool startTasks;                       // Signal to start loop tasks

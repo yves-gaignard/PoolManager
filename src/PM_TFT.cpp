@@ -86,8 +86,8 @@ void PM_TFT::Init(void) {
   calibrationData[3] = 3100;
   calibrationData[4] = 3;
   _pTFT->setTouch(calibrationData);
-  LOG_I(TAG, "TFT calibrationData used from code:");
-  for (int i=0; i<5; i++) { LOG_I(TAG, "calibrationData[%d] : %d\n", i, calibrationData[i]); }
+  LOG_D(TAG, "TFT calibrationData used from code:");
+  for (int i=0; i<5; i++) { LOG_D(TAG, "calibrationData[%d] : %d", i, calibrationData[i]); }
 
 #ifdef FORCE_CALIBRATE
   CalibrationScreen(); // if needed

@@ -30,10 +30,9 @@ const uint8_t PM_DS3231_Device_Addr     = 0x57;  // The DS3231 device itself
 const uint8_t PM_AT24C32_Device_Address = 0x68;  // (4k EEPROM) contained by the DS3231 device.
 
 
-// Setup an ADS1115 instance for analog measurements
-// ---------------------------------------------------
-// const uint8_t PM_ADS1115_Device_Addr    = 0x48;  // Address 0x48 is the default
-#define PM_ADS1115_Device_Addr    0x48   // Address 0x48 is the default
+// Setup an DFRobot_ADS1115 instance for analog measurements
+// -----------------------------------------------------------
+const uint8_t PM_ADS1115_Device_Addr = 0x48; // address of the DFRobot_ADS1115 device
 
 // list of your Wifi networks with their credentials
 // --------------------------------------------------
@@ -52,20 +51,20 @@ const int  PM_WebServerPort = 80;
 // Configuration of the temperature sensors:
 // ------------------------------------------
 // DS18B20 sensors address
-const std::string insideThermometerName     = "Inside Thermometer";  // Number: 1
-const std::string insideThermometerAddress  = "28CF0F95F0013CFE";    // Number: 1
+const std::string insideThermometerName     = "Inside Thermometer";  // Number: 3
+const std::string insideThermometerAddress  = "28569948F6943C83";    // Number: 3
 
 const std::string outsideThermometerName    = "Outside Thermometer"; // Number: 2
-const std::string outsideThermometerAddress = "28675195F0013C34";    // Number: 2
+const std::string outsideThermometerAddress = "283A5548F6AD3CA1";    // Number: 2
 
-const std::string waterThermometerName      = "Water Thermometer";   // Number: 3
-const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 3
+const std::string waterThermometerName      = "Water Thermometer";   // Number: 1
+const std::string waterThermometerAddress   = "28CF0F95F0013CFE";    // Number: 1
+
+//const std::string outsideThermometerAddress = "28675195F0013C34";    // Number: 2
+//const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 3
 
 // Configuration of the GPIOs
 // ---------------------------
-// Button to activate the TFT display
-#define PM_DisplayButton_Pin  13
-
 // Pin number to set or not set the LED backlight of the TFT
 #define PM_TFT_Led_Pin        32
 
@@ -78,8 +77,8 @@ const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 
 #define CHL_PUMP_Pin          25
 
 // Tank reset button
-#define CHL_TANK_RESET_Pin     5
-#define PH_TANK_RESET_Pin     17
+#define CHL_TANK_LEVEL_Pin     5
+#define PH_TANK_LEVEL_Pin     17
 
 // Light Buzzer
 #define LIGHT_BUZZER_Pin      16
@@ -87,10 +86,10 @@ const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 
 // Winter mode button
 #define WINTER_MODE_Pin       33
 
-// Sensors
-#define PH_SENSOR_Pin         34
-#define ORP_SENSOR_Pin        35
-#define PRESSURE_SENSOR_Pin   36
+// Sensors using ADS1115
+#define PH_SENSOR_ANALOG_Pin       0
+#define ORP_SENSOR_ANALOG_Pin      1
+#define PRESSURE_SENSOR_ANALOG_Pin 2
 
 //Digital input pins connected to Acid and Chl tank level reed switches
 //#define CHL_LEVEL             39   // not wired. Use NO_LEVEL option of Pump class
@@ -145,6 +144,7 @@ const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 
 const char PM_HourMinFormat[6]     ="%Hh%M";
 const char PM_HourFormat[4]        ="%Hh";
 const char PM_LocalTimeFormat[18]  ="%Y-%m-%d %H:%M:%S";
+const char PM_DateFormat[9]        ="%Y-%m-%d";
 const char PM_UTCTimeFormat[19]    ="%Y-%m-%dT%H:%M:%SZ";
 
 // Default time zone

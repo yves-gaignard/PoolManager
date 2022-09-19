@@ -87,8 +87,8 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   2700000.0, //double  pH_Kp;
   0.0,   // double  pH_Ki;
   0.0,   // double  pH_Kd;
-  3.49625783, // double  pHCalibCoeffs0;
-  -2.011338191, // double  pHCalibCoeffs1;
+  3.49,  //3.49625783, // double  pHCalibCoeffs0;
+  -1.889, //-2.011338191, // double  pHCalibCoeffs1;
   250.0, // double  OrpValue;                       // Current redox measure unit: mV
   1800000, //ulong   OrpPIDWindowSize;
   0,     // ulong   OrpPIDwindowStartTime;          // Orp PID window start time   
@@ -109,6 +109,7 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   0,     // time_t  pHPumpUptime;                   // pH pump uptime since the begin of the day
   0,     // time_t  OrpPumpUptime;                  // ORP pump uptime since the begin of the day
   0,     // time_t  LastRebootTimestamp;            // Timestamp of the last reboot
+  1640995200, // time_t  LastDayResetTimestamp;          // Timestamp of the last day reset 
   PM_pH_Pump_Flow_Rate,       // float   pHMinusFlowRate;    // Flow rate of pH Minus liquid injected (liter per hour)
   PM_Chlorine_Pump_Flow_Rate, // float   ChlorineFlowRate;   // Flow rate of Chlorine liquid injected (liter per hour)
   0.0,   // float   pHMinusVolume;                  // Volume of pH Minus liquid since the last complete fill of the container
@@ -176,6 +177,7 @@ void PM_getBoardInfo();
 void PM_Time_Init();
 void PM_Display_init();
 void PM_Temperature_Init();
+void AnalogInit();
 void PM_SetpHPID(bool Enable);
 void PM_SetOrpPID(bool Enable);
 
@@ -284,9 +286,7 @@ void setup() {
   }
   
   // Attribute the GPIOs
-  pinMode(PM_DisplayButton_Pin, INPUT_PULLUP);
-  attachInterrupt(PM_DisplayButton_Pin, PM_DisplayButton_ISR, FALLING);
-
+  
   //Define pins directions
   pinMode(FILTRATION_PUMP_Pin, OUTPUT);
   pinMode(PH_PUMP_Pin, OUTPUT);
@@ -295,19 +295,22 @@ void setup() {
   pinMode(LIGHT_BUZZER_Pin, OUTPUT);
 
   // As the relays on the board are activated by a LOW level, set all levels HIGH at startup
-  digitalWrite(FILTRATION_PUMP_Pin,HIGH);
-  digitalWrite(PH_PUMP_Pin,HIGH); 
-  digitalWrite(CHL_PUMP_Pin,HIGH);
+  digitalWrite(FILTRATION_PUMP_Pin, HIGH);
+  digitalWrite(PH_PUMP_Pin, HIGH); 
+  digitalWrite(CHL_PUMP_Pin, HIGH);
   
   // Warning: pins used here have no pull-ups, provide external ones
-  // pinMode(CHL_LEVEL, INPUT);
-  // pinMode(PH_LEVEL, INPUT);
+  pinMode(CHL_TANK_LEVEL_Pin, INPUT);
+  pinMode(PH_TANK_LEVEL_Pin, INPUT);
 
   // Initialize watch-dog
   esp_task_wdt_init(WDT_TIMEOUT, true);
   
   // Declare temperature sensors
   PM_Temperature_Init();
+
+  // Init pH, ORP and PSI analog measurements
+  AnalogInit();
 
   // Initialize PIDs
   pm_measures.pHPIDwindowStartTime  = millis();
@@ -362,7 +365,7 @@ void setup() {
 
   // Create tasks
   //                          Function                    Name               Stack  Param PRIO  Handle                core
-  //xTaskCreatePinnedToCore(PM_Task_AnalogPoll,      "PM_Task_AnalogPoll",      3072, NULL, 1, nullptr,            app_cpu);  // Analog measurement polling task
+  xTaskCreatePinnedToCore(PM_Task_AnalogPoll,      "PM_Task_AnalogPoll",      3072, NULL, 1, nullptr,            app_cpu);  // Analog measurement polling task
   //  xTaskCreatePinnedToCore(PM_Task_ProcessCommand,  "PM_Task_ProcessCommand",  3072, NULL, 1, nullptr,            app_cpu); // MQTT commands processing
   xTaskCreatePinnedToCore(PM_Task_Pool_Manager,    "PM_Task_Pool_Manager",    3072, NULL, 1, nullptr,            app_cpu); // Pool Manager: Supervisory task
   xTaskCreatePinnedToCore(PM_Task_GetTemperature,  "PM_Task_GetTemperature",  3072, NULL, 1, nullptr,            app_cpu); // Temperatures measurement
@@ -375,12 +378,6 @@ void setup() {
 
   //display remaining RAM/Heap space.
   LOG_I(TAG, "[memCheck] Stack: %d bytes - Heap: %d bytes",stack_hwm(),freeRam());
-
-  // Display the first screen
-  //PM_Display_screen_1();
-
-  // and the second screen
-  //PM_Display_screen_2();
 
   // Start loops tasks
   LOG_I(TAG, "Init done, starting loop tasks");
@@ -595,12 +592,12 @@ void stack_mon(UBaseType_t &hwm)
 
 // Get exclusive access of I2C bus
 void lockI2C(){
-  xSemaphoreTake(mutex, portMAX_DELAY);
+  xSemaphoreTake(I2CMutex, portMAX_DELAY);
 }
 
 // Release I2C bus access
 void unlockI2C(){
-  xSemaphoreGive(mutex);  
+  xSemaphoreGive(I2CMutex);  
 }
 
 // =================================================================================================

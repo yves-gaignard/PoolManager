@@ -66,6 +66,7 @@ function refreshControlInfo() {
 		controls.push({ name:"Reboot Number",                  value: jsonResponse.Reboot});
 		//controls.push({ name:"Last Reboot Date",               value: Time_tToDate(jsonResponse.RTime).toLocaleTimeString('fr-FR')});
 		controls.push({ name:"Last Reboot Date",               value: Time_tToDate(jsonResponse.RTime).toISOString()});
+		controls.push({ name:"Last Day Reset Date",            value: Time_tToDate(jsonResponse.RSTime).toISOString()});
 	}
 
 	let headers = ['Control', 'Status'];

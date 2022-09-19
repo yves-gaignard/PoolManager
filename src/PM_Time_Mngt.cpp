@@ -76,42 +76,42 @@ void PM_Time_Mngt_time_sync_notification_cb(struct timeval *tv)
       LOG_E(TAG, "Cannot set time to RTC as DT_now is not valid !!!!" );
     }
   }
-  
-  /*
-  // if there is a RTC module, set the time with RTC time
-  if (isRTCFound == true) {
-    
-    // set time with the RTC time
-    DateTime DT_now (rtc.now());
-    char DT_now_str[20]= "YYYY-MM-DD hh:mm:ss";
-    DT_now.toString(DT_now_str);
-    LOG_I(TAG, "Get the time from RTC: %s", DT_now_str);
-    
-    // set the time
-    now = DT_now.unixtime();
-    LOG_I(TAG, "rtc.now = %u", now );
-    timeval tv = {now, 0}; 
-    timezone tz = {0,0} ;
-    int ret = settimeofday(&tv, &tz);
-    if ( ret != 0 ) {LOG_E(TAG, "Cannot set time from RTC" ); };
-    
-  }
-  */
 }
 
 void PM_Time_Mngt_initialize_time(void)
 {
-    time_t now;
-    struct tm timeinfo;
+  time_t now;
+  struct tm timeinfo;
+  time(&now);
+  localtime_r(&now, &timeinfo);
+  // Is time set? If not, tm_year will be (1970 - 1900).
+  if (timeinfo.tm_year < (2021 - 1900)) {
+    LOG_I(TAG, "Time is not set yet. Connecting to WiFi and getting time over NTP.");
+    PM_Time_Mngt_obtain_time();
+    // update 'now' variable with current time
     time(&now);
     localtime_r(&now, &timeinfo);
-    // Is time set? If not, tm_year will be (1970 - 1900).
-    if (timeinfo.tm_year < (2016 - 1900)) {
-        LOG_I(TAG, "Time is not set yet. Connecting to WiFi and getting time over NTP.");
-        PM_Time_Mngt_obtain_time();
-        // update 'now' variable with current time
-        time(&now);
+    if (timeinfo.tm_year < (2021 - 1900)) {
+      LOG_I(TAG, "Time is not set yet. Cannot get time over NTP. Get time from RTC");
+      // if there is a RTC module, set the time with RTC time
+      if (isRTCFound == true) {
+        // set time with the RTC time
+        DateTime DT_now (rtc.now());
+        char DT_now_str[20]= "YYYY-MM-DD hh:mm:ss";
+        DT_now.toString(DT_now_str);
+        LOG_I(TAG, "Get the time from RTC: %s", DT_now_str);
+        
+        // set the time
+        now = DT_now.unixtime();
+        LOG_I(TAG, "rtc.now = %u", now );
+        timeval tv = {now, 0}; 
+        timezone tz = {0,0} ;
+        int ret = settimeofday(&tv, &tz);
+        if ( ret != 0 ) {LOG_E(TAG, "Cannot set time from RTC" ); };
+        
+      }
     }
+  }
 #ifdef CONFIG_SNTP_TIME_SYNC_METHOD_SMOOTH
     else {
         // add 500 ms error to the current system time.
@@ -203,52 +203,34 @@ void PM_Time_Mngt_obtain_time(void)
 
 void PM_Time_Mngt_initialize_sntp(void)
 {
-    LOG_I(TAG, "Initializing SNTP");
-    sntp_setoperatingmode(SNTP_OPMODE_POLL);
+  LOG_I(TAG, "Initializing SNTP");
+  sntp_setoperatingmode(SNTP_OPMODE_POLL);
 
-/*
- * If 'NTP over DHCP' is enabled, we set dynamic pool address
- * as a 'secondary' server. It will act as a fallback server in case that address
- * provided via NTP over DHCP is not accessible
- */
-#if LWIP_DHCP_GET_NTP_SRV && SNTP_MAX_SERVERS > 1
-    sntp_setservername(1, "pool.ntp.org");
+  char ntp_fr[] = "fr.pool.ntp.org";
+  char ntp[]    = "pool.ntp.org";
+  sntp_setservername(0, ntp_fr);  // set the primary NTP server (will be used only if SNTP_MAX_SERVERS > 1)
+  sntp_setservername(1, ntp);     // set the secondary NTP server (will be used only if SNTP_MAX_SERVERS > 1)
 
-#if LWIP_IPV6 && SNTP_MAX_SERVERS > 2          // statically assigned IPv6 address is also possible
-    ip_addr_t ip6;
-    if (ipaddr_aton("2a01:3f7::1", &ip6)) {    // ipv6 ntp source "ntp.netnod.se"
-        sntp_setserver(2, &ip6);
-    }
-#endif  /* LWIP_IPV6 */
+  sntp_set_time_sync_notification_cb(PM_Time_Mngt_time_sync_notification_cb);
 
-#else   /* LWIP_DHCP_GET_NTP_SRV && (SNTP_MAX_SERVERS > 1) */
-    // otherwise, use DNS address from a pool
-    //sntp_setservername(0, CONFIG_SNTP_TIME_SERVER);
-    char ntp_fr[] = "fr.pool.ntp.org";
-    char ntp[] = "pool.ntp.org";
-    sntp_setservername(0, ntp_fr);  // set the secondary NTP server (will be used only if SNTP_MAX_SERVERS > 1)
-    sntp_setservername(1, ntp);     // set the secondary NTP server (will be used only if SNTP_MAX_SERVERS > 1)
-#endif
-
-    sntp_set_time_sync_notification_cb(PM_Time_Mngt_time_sync_notification_cb);
 #ifdef CONFIG_SNTP_TIME_SYNC_METHOD_SMOOTH
     sntp_set_sync_mode(SNTP_SYNC_MODE_SMOOTH);
 #endif
-    sntp_init();
+  sntp_init();
 
-    LOG_I(TAG, "List of configured NTP servers:");
+  LOG_I(TAG, "List of configured NTP servers:");
 
-    for (uint8_t i = 0; i < SNTP_MAX_SERVERS; ++i){
-        if (sntp_getservername(i)){
-            LOG_I(TAG, "server %d: %s", i, sntp_getservername(i));
-        } else {
-            // we have either IPv4 or IPv6 address, let's print it
-            char buff[INET6_ADDRSTRLEN];
-            ip_addr_t const *ip = sntp_getserver(i);
-            if (ipaddr_ntoa_r(ip, buff, INET6_ADDRSTRLEN) != NULL)
-                LOG_I(TAG, "server %d: %s", i, buff);
-        }
+  for (uint8_t i = 0; i < SNTP_MAX_SERVERS; ++i){
+    if (sntp_getservername(i)){
+      LOG_I(TAG, "server %d: %s", i, sntp_getservername(i));
+    } else {
+      // we have either IPv4 or IPv6 address, let's print it
+      char buff[INET6_ADDRSTRLEN];
+      ip_addr_t const *ip = sntp_getserver(i);
+      if (ipaddr_ntoa_r(ip, buff, INET6_ADDRSTRLEN) != NULL)
+          LOG_I(TAG, "server %d: %s", i, buff);
     }
+  }
 }
 
 /**
