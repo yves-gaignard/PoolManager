@@ -47,51 +47,8 @@ void PM_Task_TFT       ( void *pvParameters ) {
 	  strftime(timestamp_str, sizeof(timestamp_str), PM_LocalTimeFormat, time_tm);
     LOG_V(TAG, "%s : core = %d (priorite %d)",timestamp_str, xPortGetCoreID(), uxPriority);
 
-    tft.Loop();
-    /*
-    // if lcd display button is pressed then set the display ON in case of OFF
-    if ( PM_Display_Activation_Request == true) {
-      if (lcd.getDisplayState() == false ) {  
-        // the LCD is OFF. We just set it ON again
-        lcd.display();
-        //LOG_D(TAG, "%s : Display is shown",timestamp_str);
-        // reset the display duration counter
-        screens.setInactivityTimeOutReset();
-      }
-      PM_Display_Activation_Request=false;
-    }
+    PM_tft.Loop();
 
-    // If the display is ON
-    if (lcd.getDisplayState() == true) {
-      // if the timout of the current screen is not reached
-
-      if ( (now - screens.getLastScreenStartTime()) > screens.getScreenSwitchTime()) { 
-        // display the next screen
-        int screen_index= (screens.getCurrentScreenIndex()+1)%screens.getScreenNumber();
-        if (screen_index == 0) screen_index++; // don't display anymore the screen 0
-
-        switch (screen_index) {
-          case 1 : screens.setCurrentScreen(screen_index); 
-              PM_Display_screen_1();
-              //LOG_D(TAG, "%s : Display screen %d",timestamp_str, screen_index);
-            break;
-          case 2 : screens.setCurrentScreen(screen_index);
-              PM_Display_screen_2();
-              //LOG_D(TAG, "%s : Display screen %d",timestamp_str, screen_index);
-            break;
-          default:
-            LOG_E(TAG, "%s : Cannot Display screen %d",timestamp_str, screen_index);
-        }
-      } 
-
-      if ((now - screens.getDisplayStart()) >= screens.getInactivityMaxTime()) {
-        // if no_activity at all during MAX_WITHOUT_ACTIVITES then stop the display
-        lcd.noDisplay();
-        lcd.noBacklight();
-        //LOG_D(TAG, "%s : Display is stopped",timestamp_str);
-      }
-    }
-    */
     stack_mon(hwm);
     vTaskDelayUntil(&ticktime,period);
   }
@@ -124,16 +81,4 @@ void PM_Task_WebServer ( void *pvParameters ) {
     stack_mon(hwm);
     vTaskDelayUntil(&ticktime,period);
   }
-}
-
-// =================================================================================================
-//                              DISPLAY BUTTON INTERRUPTION MANAGEMENT
-// =================================================================================================
-void IRAM_ATTR PM_DisplayButton_ISR() {
-  if (millis() - PM_DisplayButton_LastPressed > 100) { // Software debouncing button
-    LOG_I(TAG, "Display button pressed");
-    PM_Display_Activation_Request = true;
-    PM_DisplayButton_State = !PM_DisplayButton_State;
-  }
-  PM_DisplayButton_LastPressed = millis();
 }

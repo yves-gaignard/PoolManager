@@ -83,7 +83,10 @@ struct PM_SwimmingPoolMeasures {
   time_t  PeriodFiltrationEndTime;        // Next period end time of the filtration
   time_t  PreviousDayFiltrationUptime;    // Filtration Duration of the previous day
   time_t  PreviousDayFiltrationTarget;    // Target Filtration duration of the previous day
+  time_t  pHPumpUptime;                   // pH pump uptime since the begin of the day
+  time_t  OrpPumpUptime;                  // ORP pump uptime since the begin of the day
   time_t  LastRebootTimestamp;            // Timestamp of the last reboot
+  time_t  LastDayResetTimestamp;          // Timestamp of the last day reset
   float   pHMinusFlowRate;                // Flow rate of pH Minus liquid injected (liter per hour)
   float   ChlorineFlowRate;               // Flow rate of Chlorine liquid injected (liter per hour)
   float   pHMinusVolume;                  // Volume of pH Minus liquid since the last complete fill of the container

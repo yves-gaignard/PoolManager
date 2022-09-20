@@ -26,7 +26,7 @@
 #define TOUCH_SETTINGS_WIDTH  133
 #define TOUCH_SETTINGS_X      347
 
-// name of the files on SPIFFS
+// name of the files on SPIFFS (LittleFS)
 #define CALIBRATION_FILE    "/calibrationData"
 #define HOME_MEASURES       "/Home_Measures.png"
 #define HOME_MEASURES_2     "/Home_Measures2.png"
@@ -54,15 +54,23 @@
 #define C_WHITE         0xFFFF
 
 class PM_TFT {
+
+  enum PM_SCREEN_NAME { SCR_ERRORS, SCR_MEASURES, SCR_CALIBS, SCR_SWITCHES, SCR_SETTINGS };
+
   private:
-    TFT_eSPI* _pTFT;
-    int16_t   _TFT_Wide;
-    int16_t   _TFT_Height;
-    u_int8_t  _TFT_Led_Pin;
+    TFT_eSPI*      _pTFT;
+    int16_t        _TFT_Wide;
+    int16_t        _TFT_Height;
+    u_int8_t       _TFT_Led_Pin;
+    unsigned long  _lastTouchTime;
+    bool           _Backlight;
+    PM_SCREEN_NAME _currentScreen = SCR_ERRORS;
+    unsigned long  _lastScreenRefresh;
+  
 
   public:
     // Constructors
-    PM_TFT(int16_t TFT_Wide, int16_t TFT_Height, u_int8_t TFT_Led_pin);
+    PM_TFT(int16_t TFT_Wide, int16_t TFT_Height, u_int8_t TFT_Led_pin = TFT_BL);
     ~PM_TFT();
 
     void Init(void);
@@ -77,7 +85,8 @@ class PM_TFT {
     void PrintCalibsScreen();
     void PrintSettingsScreen();
     void PrintScreenHeader();
-    int16_t ImageDraw(int16_t _xpos, int16_t _ypos, const std::string& filename);
+    int16_t ImageDraw(const int16_t xpos, const int16_t ypos, const std::string& filename);
+    int16_t ImageDraw(const int16_t xpos, const int16_t ypos, const char* filename);
     void CalibrationScreen();
 
     static void *  pngOpen(const char *filename, int32_t *size);

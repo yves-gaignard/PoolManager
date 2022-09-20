@@ -67,6 +67,7 @@ bool PM_NVS_Load() {
   pm_measures.PMVersion                  = nvs.getUChar ("PMVersion"      ,0);
   pm_measures.RebootNumber               = nvs.getUChar ("RebootNumber"   ,0);
   pm_measures.LastRebootTimestamp        = nvs.getULong ("LastReboot"     ,0);
+  pm_measures.LastDayResetTimestamp      = nvs.getULong ("LastDayReset"   ,0);
   pm_measures.AutoMode                   = nvs.getBool  ("AutoMode"       ,true);
   pm_measures.WinterMode                 = nvs.getBool  ("WinterMode"     ,false);
   pm_measures.InAirTemp                  = nvs.getFloat ("InAirTemp"      ,0.0);
@@ -104,6 +105,8 @@ bool PM_NVS_Load() {
   pm_measures.PeriodFiltrationEndTime    = nvs.getULong ("PFiltrEndTime"  ,0);
   pm_measures.PreviousDayFiltrationUptime= nvs.getULong ("PDayFiltrUptime",0);
   pm_measures.PreviousDayFiltrationTarget= nvs.getULong ("PDayFiltrTarget",0);
+  pm_measures.pHPumpUptime               = nvs.getULong ("pHPumpUptime"   ,0);
+  pm_measures.OrpPumpUptime              = nvs.getULong ("OrpPumpUptime"  ,0);
   pm_measures.pHMinusFlowRate            = nvs.getFloat ("pHMinusFlowRate",0.0);
   pm_measures.ChlorineFlowRate           = nvs.getFloat ("ChlorinFlowRate",0.0);
   pm_measures.pHMinusVolume              = nvs.getFloat ("pHMinusVolume"  ,0.0);
@@ -126,7 +129,7 @@ bool PM_NVS_Load() {
   nvs.end();
 
   LOG_D(TAG, "%d", pm_measures.PMVersion);
-  LOG_D(TAG, "%d, %d", pm_measures.RebootNumber, pm_measures.LastRebootTimestamp);
+  LOG_D(TAG, "%d, %d, %d", pm_measures.RebootNumber, pm_measures.LastRebootTimestamp, pm_measures.LastDayResetTimestamp);
   LOG_D(TAG, "%d, %d, %d, %d, %d", pm_measures.AutoMode, pm_measures.WinterMode, pm_measures.pH_RegulationOnOff, pm_measures.Orp_RegulationOnOff, pm_measures.DelayPIDs);
   LOG_D(TAG, "%2.2f, %2.2f, %2.2f,%2.2f", pm_measures.InAirTemp, pm_measures.WaterTemp,pm_measures.OutAirTemp, pm_measures.WaterTempLowThreshold);
   LOG_D(TAG, "%2.2f, %4.0f", pm_measures.pHValue, pm_measures.OrpValue);
@@ -139,6 +142,7 @@ bool PM_NVS_Load() {
   LOG_D(TAG, "%d, %d", pm_measures.DayFiltrationUptime, pm_measures.DayFiltrationTarget);
   LOG_D(TAG, "%d, %d", pm_measures.PreviousDayFiltrationUptime, pm_measures.PreviousDayFiltrationTarget);
   LOG_D(TAG, "%d, %d", pm_measures.PeriodFiltrationStartTime, pm_measures.PeriodFiltrationEndTime);
+  LOG_D(TAG, "%d, %d", pm_measures.pHPumpUptime, pm_measures.OrpPumpUptime);
   LOG_D(TAG, "%2.2f, %2.2f", pm_measures.pHMinusFlowRate, pm_measures.ChlorineFlowRate);
   LOG_D(TAG, "%2.2f, %2.2f", pm_measures.pHMinusVolume, pm_measures.ChlorineVolume);
   LOG_D(TAG, "%d, %d", pm_measures.ConsumedInstantaneousPower, pm_measures.DayConsumedPower);
@@ -167,6 +171,7 @@ bool PM_NVS_Save() {
        nvs.putUChar ("PMVersion",       pm_measures.PMVersion);
   i += nvs.putUChar ("RebootNumber",    pm_measures.RebootNumber);
   i += nvs.putULong ("LastReboot",      pm_measures.LastRebootTimestamp);
+  i += nvs.putULong ("LastDayReset",    pm_measures.LastDayResetTimestamp);
   i += nvs.putBool  ("AutoMode",        pm_measures.AutoMode);
   i += nvs.putBool  ("WinterMode",      pm_measures.WinterMode);
   i += nvs.putFloat ("InAirTemp",       pm_measures.InAirTemp);
@@ -204,6 +209,8 @@ bool PM_NVS_Save() {
   i += nvs.putULong ("PFiltrEndTime",   pm_measures.PeriodFiltrationEndTime);
   i += nvs.putULong ("PDayFiltrUptime", pm_measures.PreviousDayFiltrationUptime);
   i += nvs.putULong ("PDayFiltrTarget", pm_measures.PreviousDayFiltrationTarget);
+  i += nvs.putULong ("pHPumpUptime"   , pm_measures.pHPumpUptime);
+  i += nvs.putULong ("OrpPumpUptime"  , pm_measures.OrpPumpUptime);
   i += nvs.putFloat ("pHMinusFlowRate", pm_measures.pHMinusFlowRate);
   i += nvs.putFloat ("ChlorinFlowRate", pm_measures.ChlorineFlowRate);
   i += nvs.putFloat ("pHMinusVolume",   pm_measures.pHMinusVolume);

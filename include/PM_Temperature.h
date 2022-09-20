@@ -7,6 +7,7 @@
 #define PM_Temperature_h
 
 #include <Arduino.h>
+#include <vector>
 #include <DallasTemperature.h>
 
 class PM_Temperature {

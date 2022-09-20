@@ -120,8 +120,9 @@ static std::vector<PM_FiltrationPeriod> PM_FiltrationPeriod_Abaqus = {
 static std::vector<PM_FiltrationPeriod> PM_FiltrationPeriod_Abaqus = {
 // { Start , End, Priority }  
   {  0,  6,  3},  // The night period is considered as less priority than the light day.
-  {  6,  9,  1},  // The main priority 1 is allocated to the morning
-  {  9, 10,  5},  // The main priority 1 is allocated to the morning
+  {  6,  8,  1},  // The main priority 1 is allocated to the morning
+  {  8,  9,  1},  // The main priority 1 is allocated to the morning
+  {  9, 10,  1},  // The main priority 1 is allocated to the morning
   { 10, 11,  1},  // The main priority 1 is allocated to the morning
   { 11, 12,  1},  // The main priority 1 is allocated to the morning
   { 12, 13,  5},  // During lunch time, the filtration is on only when necessary 

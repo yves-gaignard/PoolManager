@@ -40,13 +40,13 @@ void PM_OTA_Web_Srv_setup(boolean isWebSerial) {
     return;
   }
 
-  LOG_I(TAG, "List of Files:");
+  LOG_D(TAG, "List of Files:");
   File root = FileSys.open("/");
   File file = root.openNextFile();
 
   while(file)
   {
-    LOG_I(TAG, "File: %s", file.name());
+    LOG_D(TAG, "File: %s", file.name());
     file.close();
     file = root.openNextFile();
   }
@@ -106,6 +106,7 @@ void PM_OTA_Web_Srv_getMeasures(AsyncWebServerRequest *request) {
   root["Vers"]   = pm_measures.PMVersion;                    // firmware revision
   root["Reboot"] = pm_measures.RebootNumber;
   root["RTime"]  = pm_measures.LastRebootTimestamp;
+  root["RSTime"] = pm_measures.LastDayResetTimestamp;
   
   root["DFUpt"]  = pm_measures.DayFiltrationUptime;          // Filtration Duration since the begin of the day
   root["DFTrgt"] = pm_measures.DayFiltrationTarget;          // Maximum Filtration duration for the whole day

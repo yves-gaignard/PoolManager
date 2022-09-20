@@ -12,23 +12,28 @@
 #include <Arduino.h>
 #include <RTClib.h>
 #include <PID_v1.h>             // Library for PID controller (Proportional–Integral–Derivative controller)
-#include <ADS1115.h>
+#include <DFRobot_ADS1115.h>
 #include <Preferences.h>
+#include <WiFiMulti.h>             // Library for WiFi management
 
 #include "PM_Log.h"
 #include "PM_TFT.h"
 #include "PM_Structures.h"
-#include "PM_Screens.h"
 #include "PM_Temperature.h"
 #include "PM_Pump.h" 
 
 // Instantiate TFT display and a screen template
-extern PM_TFT tft;
-extern PM_Screens screens;
+extern PM_TFT PM_tft;
 
 // NVS Non Volatile SRAM (eqv. EEPROM)
 extern Preferences nvs;   
 extern PM_SwimmingPoolMeasures     pm_measures;
+
+// To manage wifi between multiple networks
+extern WiFiMulti wifiMulti;
+
+// To manage the connection on Wifi
+extern boolean IsWifiConnected;
 
 //PIDs instances
 extern PID pHPID;
@@ -49,7 +54,7 @@ extern time_t     now;  // Current time (global variable)
 extern PM_Temperature PM_TemperatureSensors;
 
 // Instantiate object to manage all other sensors
-extern ADS1115Scanner PM_ads;
+extern DFRobot_ADS1115 PM_ads;
 
 // Various flags
 extern volatile bool startTasks;                       // Signal to start loop tasks
@@ -63,7 +68,7 @@ extern bool EmergencyStopFiltPump;                     // Filtering pump stopped
 
 extern void PM_ComputeNextFiltrationPeriods();
 
-extern void PM_Write_Filtration_UpTime();
+extern void PM_Write_UpTime();
 extern void PM_FiltrationPumpStart();
 extern void PM_FiltrationPumpStop();
 

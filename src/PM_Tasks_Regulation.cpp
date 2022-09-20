@@ -14,6 +14,7 @@
 #include <ESPPerfectTime.h>
 
 #include "PM_Pool_Manager.h"
+#include "PM_Parameters.h"
 
 // =================================================================================================
 //                                pH REGULATION TASK OF POOL MANAGER

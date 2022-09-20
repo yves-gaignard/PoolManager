@@ -35,7 +35,6 @@
 #include "PM_Wifi.h"               // Pool manager wifi management
 #include "PM_OTA_Web_Srv.h"        // Pool manager web server management
 #include "PM_TFT.h"                // Pool manager TFT device management
-#include "PM_Screens.h"            // Pool manager screens
 #include "PM_Error.h"              // Pool manager error management
 #include "PM_Utils.h"              // Pool manager utilities
 #include "PM_Pump.h"               // Pool manager pumps management
@@ -58,10 +57,7 @@ tm* time_tm;
 static byte I2CDevices[128];
 
 // Instantiate TFT display
-PM_TFT tft(SCREEN_WIDTH, SCREEN_HEIGHT, PM_TFT_Led_Pin);
-
-// Instantiate screens
-PM_Screens screens;
+PM_TFT PM_tft(SCREEN_WIDTH, SCREEN_HEIGHT, PM_TFT_Led_Pin);
 
 // NVS Non Volatile SRAM (eqv. EEPROM)
 Preferences nvs;   
@@ -91,8 +87,8 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   2700000.0, //double  pH_Kp;
   0.0,   // double  pH_Ki;
   0.0,   // double  pH_Kd;
-  3.49625783, // double  pHCalibCoeffs0;
-  -2.011338191, // double  pHCalibCoeffs1;
+  3.59745102214514,  // double  pHCalibCoeffs0;
+  -2.01050663685075, // double  pHCalibCoeffs1;
   250.0, // double  OrpValue;                       // Current redox measure unit: mV
   1800000, //ulong   OrpPIDWindowSize;
   0,     // ulong   OrpPIDwindowStartTime;          // Orp PID window start time   
@@ -102,15 +98,18 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   2700000.0, //double  Orp_Kp;
   0.0,   // double  Orp_Ki;
   0.0,   // double  Orp_Kd;
-  -876.430775, // double  OrpCalibCoeffs0;
-  2328.8985,   // double  OrpCalibCoeffs1;
+  -914.572864321609, //-876.430775, // double  OrpCalibCoeffs0;
+  2327.32663316583, //2328.8985,   // double  OrpCalibCoeffs1;
   0,     // time_t  DayFiltrationUptime;            // Filtration Duration since the begin of the day
   0,     // time_t  DayFiltrationTarget;            // Maximum Filtration duration for the whole day
   0,     // time_t  PeriodFiltrationStartTime;      // Next period start time of the filtration
   0,     // time_t  PeriodFiltrationEndTime;        // Next period end time of the filtration
   0,     // time_t  PreviousDayFiltrationUptime;    // Filtration Duration of the previous day
   0,     // time_t  PreviousDayFiltrationTarget;    // Target Filtration duration of the previous day
+  0,     // time_t  pHPumpUptime;                   // pH pump uptime since the begin of the day
+  0,     // time_t  OrpPumpUptime;                  // ORP pump uptime since the begin of the day
   0,     // time_t  LastRebootTimestamp;            // Timestamp of the last reboot
+  1640995200, // time_t  LastDayResetTimestamp;          // Timestamp of the last day reset 
   PM_pH_Pump_Flow_Rate,       // float   pHMinusFlowRate;    // Flow rate of pH Minus liquid injected (liter per hour)
   PM_Chlorine_Pump_Flow_Rate, // float   ChlorineFlowRate;   // Flow rate of Chlorine liquid injected (liter per hour)
   0.0,   // float   pHMinusVolume;                  // Volume of pH Minus liquid since the last complete fill of the container
@@ -146,11 +145,11 @@ PM_Pump ChlPump(CHL_PUMP_Pin, CHL_PUMP_Pin, NO_LEVEL, FILTRATION_PUMP_Pin, pm_me
 PID pHPID(&pm_measures.pHValue, &pm_measures.pHPIDOutput, &pm_measures.pH_SetPoint, pm_measures.pH_Kp, pm_measures.pH_Ki, pm_measures.pH_Kd, pHPID_DIRECTION);
 PID OrpPID(&pm_measures.OrpValue, &pm_measures.OrpPIDOutput, &pm_measures.Orp_SetPoint, pm_measures.Orp_Kp, pm_measures.Orp_Ki, pm_measures.Orp_Kd, OrpPID_DIRECTION);
 
-// To manage the connection on Wifi
-boolean IsWifiConnected   = false;
-
 // To manage wifi between multiple networks
 WiFiMulti wifiMulti;
+
+// To manage the connection on Wifi
+boolean IsWifiConnected   = false;
 
 // Mutex to share access to I2C bus among two tasks: AnalogPoll and StatusLights
 static SemaphoreHandle_t I2CMutex;
@@ -178,6 +177,7 @@ void PM_getBoardInfo();
 void PM_Time_Init();
 void PM_Display_init();
 void PM_Temperature_Init();
+void AnalogInit();
 void PM_SetpHPID(bool Enable);
 void PM_SetOrpPID(bool Enable);
 
@@ -198,11 +198,10 @@ void setup() {
   Log.setTag("PM_Config"           , LOG_LEVEL);
   Log.setTag("PM_I2CScan"          , LOG_LEVEL);
   Log.setTag("PM_Log"              , LOG_LEVEL);
-  Log.setTag("PM_main"             , LOG_VERBOSE);
+  Log.setTag("PM_main"             , LOG_DEBUG);
   Log.setTag("PM_NVS"              , LOG_LEVEL);
-  Log.setTag("PM_OTA_Web_Srv"      , LOG_DEBUG);
+  Log.setTag("PM_OTA_Web_Srv"      , LOG_LEVEL);
   Log.setTag("PM_Pump"             , LOG_LEVEL);
-  Log.setTag("PM_Screens"          , LOG_LEVEL);
   Log.setTag("PM_Task_Pool_Manager", LOG_DEBUG);
   Log.setTag("PM_Tasks_Display"    , LOG_LEVEL);
   Log.setTag("PM_Tasks_Regulation" , LOG_DEBUG);
@@ -257,7 +256,7 @@ void setup() {
   PM_NVS_saveParam("LastReboot", (unsigned long)pm_measures.LastRebootTimestamp);
 
   //Init TFT
-  tft.Init();
+  PM_tft.Init();
 
   // start Web Server
   PM_OTA_Web_Srv_setup(IS_WEB_SERIAL_ACTIVATED);
@@ -270,8 +269,8 @@ void setup() {
     std::string Display_ErrorNumber = "Error: "+Error.getErrorNumberStr();
     std::string Display_ErrorMessage = Error.getDisplayMsg();
     LOG_E(TAG, "%s",Display_ErrorMessage.c_str());
-    tft.Clear();
-    tft.PrintError(Display_ErrorNumber ,Display_ErrorMessage);
+    PM_tft.Clear();
+    PM_tft.PrintError(Display_ErrorNumber ,Display_ErrorMessage);
     for ( ;; ) {} //infinite loop as the configuration could not be wrong
   }
 
@@ -281,15 +280,13 @@ void setup() {
     std::string Display_ErrorNumber = "Error: " + Error.getErrorNumberStr();
     std::string Display_ErrorMessage = Error.getDisplayMsg();
     LOG_E(TAG, "%s",Display_ErrorMessage.c_str());
-    tft.Clear();
-    tft.PrintError(Display_ErrorNumber ,Display_ErrorMessage);
+    PM_tft.Clear();
+    PM_tft.PrintError(Display_ErrorNumber ,Display_ErrorMessage);
     for ( ;; ) {} //infinite loop as the configuration could not be wrong
   }
   
   // Attribute the GPIOs
-  pinMode(PM_DisplayButton_Pin, INPUT_PULLUP);
-  attachInterrupt(PM_DisplayButton_Pin, PM_DisplayButton_ISR, FALLING);
-
+  
   //Define pins directions
   pinMode(FILTRATION_PUMP_Pin, OUTPUT);
   pinMode(PH_PUMP_Pin, OUTPUT);
@@ -298,19 +295,22 @@ void setup() {
   pinMode(LIGHT_BUZZER_Pin, OUTPUT);
 
   // As the relays on the board are activated by a LOW level, set all levels HIGH at startup
-  digitalWrite(FILTRATION_PUMP_Pin,HIGH);
-  digitalWrite(PH_PUMP_Pin,HIGH); 
-  digitalWrite(CHL_PUMP_Pin,HIGH);
+  digitalWrite(FILTRATION_PUMP_Pin, HIGH);
+  digitalWrite(PH_PUMP_Pin, HIGH); 
+  digitalWrite(CHL_PUMP_Pin, HIGH);
   
   // Warning: pins used here have no pull-ups, provide external ones
-  // pinMode(CHL_LEVEL, INPUT);
-  // pinMode(PH_LEVEL, INPUT);
+  pinMode(CHL_TANK_LEVEL_Pin, INPUT);
+  pinMode(PH_TANK_LEVEL_Pin, INPUT);
 
   // Initialize watch-dog
   esp_task_wdt_init(WDT_TIMEOUT, true);
   
   // Declare temperature sensors
   PM_Temperature_Init();
+
+  // Init pH, ORP and PSI analog measurements
+  AnalogInit();
 
   // Initialize PIDs
   pm_measures.pHPIDwindowStartTime  = millis();
@@ -365,25 +365,19 @@ void setup() {
 
   // Create tasks
   //                          Function                    Name               Stack  Param PRIO  Handle                core
-  //xTaskCreatePinnedToCore(PM_Task_AnalogPoll,      "PM_Task_AnalogPoll",      3072, NULL, 1, nullptr,            app_cpu);  // Analog measurement polling task
+  xTaskCreatePinnedToCore(PM_Task_AnalogPoll,      "PM_Task_AnalogPoll",      3072, NULL, 1, nullptr,            app_cpu);  // Analog measurement polling task
   //  xTaskCreatePinnedToCore(PM_Task_ProcessCommand,  "PM_Task_ProcessCommand",  3072, NULL, 1, nullptr,            app_cpu); // MQTT commands processing
   xTaskCreatePinnedToCore(PM_Task_Pool_Manager,    "PM_Task_Pool_Manager",    3072, NULL, 1, nullptr,            app_cpu); // Pool Manager: Supervisory task
   xTaskCreatePinnedToCore(PM_Task_GetTemperature,  "PM_Task_GetTemperature",  3072, NULL, 1, nullptr,            app_cpu); // Temperatures measurement
   //xTaskCreatePinnedToCore(PM_Task_OrpRegulation,   "PM_Task_OrpRegulation",   2048, NULL, 1, nullptr,            app_cpu); // ORP regulation loop
   //xTaskCreatePinnedToCore(PM_Task_pHRegulation,    "PM_Task_pHRegulation",    2048, NULL, 1, nullptr,            app_cpu); // pH regulation loop
-  xTaskCreatePinnedToCore(PM_Task_TFT,             "Task_TFT",                3072, NULL, 1, nullptr,            app_cpu);
-  xTaskCreatePinnedToCore(PM_Task_WebServer,       "Task_WebServer",          3072, NULL, 1, nullptr,            app_cpu);
+  xTaskCreatePinnedToCore(PM_Task_TFT,             "PM_Task_TFT",             3072, NULL, 1, nullptr,            app_cpu);
+  xTaskCreatePinnedToCore(PM_Task_WebServer,       "PM_Task_WebServer",       3072, NULL, 1, nullptr,            app_cpu);
   //  xTaskCreatePinnedToCore(PM_Task_MeasuresPublish, "PM_Task_MeasuresPublish", 3072, NULL, 1, &pubMeasTaskHandle, app_cpu); // Measures MQTT publish 
   //  xTaskCreatePinnedToCore(PM_Task_SettingsPublish, "PM_Task_SettingsPublish", 3072, NULL, 1, &pubSetTaskHandle,  app_cpu);  // MQTT Settings publish 
 
   //display remaining RAM/Heap space.
   LOG_I(TAG, "[memCheck] Stack: %d bytes - Heap: %d bytes",stack_hwm(),freeRam());
-
-  // Display the first screen
-  //PM_Display_screen_1();
-
-  // and the second screen
-  //PM_Display_screen_2();
 
   // Start loops tasks
   LOG_I(TAG, "Init done, starting loop tasks");
@@ -598,12 +592,12 @@ void stack_mon(UBaseType_t &hwm)
 
 // Get exclusive access of I2C bus
 void lockI2C(){
-  xSemaphoreTake(mutex, portMAX_DELAY);
+  xSemaphoreTake(I2CMutex, portMAX_DELAY);
 }
 
 // Release I2C bus access
 void unlockI2C(){
-  xSemaphoreGive(mutex);  
+  xSemaphoreGive(I2CMutex);  
 }
 
 // =================================================================================================
