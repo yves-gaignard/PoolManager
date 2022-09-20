@@ -51,25 +51,26 @@ const int  PM_WebServerPort = 80;
 // Configuration of the temperature sensors:
 // ------------------------------------------
 // DS18B20 sensors address
-const std::string insideThermometerName     = "Inside Thermometer";  // Number: 3
-const std::string insideThermometerAddress  = "28569948F6943C83";    // Number: 3
+const std::string insideThermometerName     = "Inside Thermometer";
+const std::string insideThermometerAddress  = "28569948F6943C83";    // Number: 3 Long
 
-const std::string outsideThermometerName    = "Outside Thermometer"; // Number: 2
-const std::string outsideThermometerAddress = "283A5548F6AD3CA1";    // Number: 2
+const std::string outsideThermometerName    = "Outside Thermometer";
+const std::string outsideThermometerAddress = "283A5548F6AD3CA1";    // Number: 2 Long
 
-const std::string waterThermometerName      = "Water Thermometer";   // Number: 1
-const std::string waterThermometerAddress   = "28CF0F95F0013CFE";    // Number: 1
+const std::string waterThermometerName      = "Water Thermometer";
+const std::string waterThermometerAddress   = "28675195F0013C34";    // Number: 2 Small
 
-//const std::string outsideThermometerAddress = "28675195F0013C34";    // Number: 2
-//const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 3
+//const std::string waterThermometerAddress   = "28CF0F95F0013CFE";    // Number: 1 small
+//const std::string outsideThermometerAddress = "28675195F0013C34";    // Number: 2 small
+//const std::string waterThermometerAddress   = "289F1E95F0013C61";    // Number: 3 small
 
 // Configuration of the GPIOs
 // ---------------------------
 // Pin number to set or not set the LED backlight of the TFT
 #define PM_TFT_Led_Pin        32
 
-// One wire (temperature sensors) is plugged into GPIO 0
-#define ONE_WIRE_BUS           0 
+// One wire (temperature sensors) is plugged into GPIO 33
+#define ONE_WIRE_BUS          33 
 
 // Pump management 
 #define FILTRATION_PUMP_Pin   26

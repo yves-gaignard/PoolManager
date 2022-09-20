@@ -121,6 +121,7 @@ void PM_Task_AnalogPoll(void *pvParameters)
   char timestamp_str[20];
   time_t now;
   suseconds_t usec;
+  unsigned long LastPrintTime =0;
 
   //lockI2C();
   //PM_ads.start();
@@ -138,16 +139,14 @@ void PM_Task_AnalogPoll(void *pvParameters)
 
     if (PM_ads.checkADS1115()) {
       ph_sensor_value = PM_ads.readVoltage(PH_SENSOR_ANALOG_Pin); // pH sensor current value
-      LOG_D(TAG,"pH: %10.5f mV", ph_sensor_value);
+      LOG_V(TAG,"read pH: %10.5f mV", ph_sensor_value);
       orp_sensor_value = PM_ads.readVoltage(ORP_SENSOR_ANALOG_Pin); // ORP sensor current value
-      //LOG_D(TAG,"pH: %10.5f mV", orp_sensor_value);
+      LOG_V(TAG,"read ORP: %10.5f mV", orp_sensor_value);
       psi_sensor_value = PM_ads.readVoltage(PRESSURE_SENSOR_ANALOG_Pin); // psi sensor current value
-      //LOG_D(TAG,"pH: %10.5f mV", psi_sensor_value);
+      LOG_V(TAG,"read pressure: %10.5f mV", psi_sensor_value);
 
       //pH
       samples_Ph.add(ph_sensor_value);          // compute average of pH from center 5 measurements among 11
-      // compute average of ORP from last 5 measurements
-      LOG_D(TAG,"samples_Ph: %10.5f", samples_Ph.getAverage(5));
       //pm_measures.pHValue = (samples_Ph.getAverage(5)*0.1875/1000.)*pm_measures.pHCalibCoeffs0 + pm_measures.pHCalibCoeffs1; // Pool Master
       pm_measures.pHValue = (samples_Ph.getAverage(5)/1000)*pm_measures.pHCalibCoeffs0 + pm_measures.pHCalibCoeffs1; // Simple formule from phidget 1130
       //pm_measures.pHValue = (samples_Ph.getAverage(5)*0.1875/1000.)*pm_measures.pHCalibCoeffs0 + pm_measures.pHCalibCoeffs1; // Complex formule from phidget 1130
@@ -181,8 +180,6 @@ void PM_Task_AnalogPoll(void *pvParameters)
 
       //ORP
       samples_Orp.add(orp_sensor_value);
-      // compute average of ORP from last 5 measurements
-      //LOG_D(TAG,"samples_Orp: %10.5f", samples_Orp.getAverage(5));
       // pm_measures.OrpValue = (samples_Orp.getAverage(5)*0.1875/1000.)*pm_measures.OrpCalibCoeffs0 + pm_measures.OrpCalibCoeffs1;   // Pool Master
       pm_measures.OrpValue = (samples_Orp.getAverage(5)/1000 )*pm_measures.OrpCalibCoeffs0 + pm_measures.OrpCalibCoeffs1; // Simple formule from phidget 1130
       // pm_measures.OrpValue = (samples_Orp.getAverage(5)*0.1875/1000.)*pm_measures.OrpCalibCoeffs0 + pm_measures.OrpCalibCoeffs1; // Complex formule from phidget 1130
@@ -202,12 +199,17 @@ void PM_Task_AnalogPoll(void *pvParameters)
 #endif
 
       //PSI (water pressure)
-      samples_PSI.add(psi_sensor_value);       
+      samples_PSI.add(psi_sensor_value);
       // compute average of PSI from last 5 measurements
       pm_measures.Pressure = (samples_PSI.getAverage(5)/1000.)*pm_measures.PSICalibCoeffs0 + pm_measures.PSICalibCoeffs1;
 
-      LOG_D(TAG,"pH: %5.0f - %4.2f - ORP: %5.0f - %3.0fmV - PSI: %5.0f - %4.2fBar",
-        ph_sensor_value,pm_measures.pHValue,orp_sensor_value,pm_measures.OrpValue,psi_sensor_value,pm_measures.Pressure);
+      pm_measures.Pressure = 1.5; // debug
+
+      if ((millis() - LastPrintTime) >= 5000 ) {
+        LOG_D(TAG,"pH: %5.0f - %4.2f - ORP: %5.0f - %3.0fmV - PSI: %5.0f - %4.2fBar",
+          ph_sensor_value,pm_measures.pHValue,orp_sensor_value,pm_measures.OrpValue,psi_sensor_value,pm_measures.Pressure);
+        LastPrintTime=millis();
+      }
     }
     else
     {

@@ -177,11 +177,11 @@ void PM_Log::vPrint(char const * fmt, va_list args) {
 
   if (_newline_on) {
     _log_output_stream->println(msg_buf);
-    if (_is_web_serial) WebSerial.println(msg_buf);
+    if (_is_web_serial == true) { WebSerial.println(msg_buf); }
   } 
   else {
     _log_output_stream->print(msg_buf);
-        if (_is_web_serial) WebSerial.print(msg_buf);
+    if (_is_web_serial == true) { WebSerial.print(msg_buf); }
 
   }
 
@@ -211,7 +211,7 @@ void PM_Log::printTimestamp()
   }
 
   _log_output_stream->print(timestamp);
-  if (_is_web_serial) WebSerial.print(timestamp);
+  if (_is_web_serial == true) { WebSerial.print(timestamp); }
 
 }
 
@@ -223,7 +223,7 @@ void PM_Log::printLogLabel(int const log_level)
     return;
 
   _log_output_stream->print(LOG_MODE_STRING[log_level]);
-  if (_is_web_serial) WebSerial.print(LOG_MODE_STRING[log_level]);
+  if (_is_web_serial == true) { WebSerial.print(LOG_MODE_STRING[log_level]); }
 
 }
 

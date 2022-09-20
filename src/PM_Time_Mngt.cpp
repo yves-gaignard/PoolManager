@@ -4,15 +4,6 @@
   Pool manager time management
 */
 
-/* LwIP SNTP example
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
-
 #define TAG "PM_Time_Mngt"
 
 #include <Arduino.h>
@@ -21,62 +12,6 @@
 #include "PM_Parameters.h"
 #include <string.h>
 #include <time.h>
-#include <sys/time.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/event_groups.h"
-#include "esp_system.h"
-#include "esp_event.h"
-#include "esp_log.h"
-#include "esp_attr.h"
-#include "esp_sleep.h"
-#include "nvs_flash.h"
-#include "esp_sntp.h"
-
-#ifndef INET6_ADDRSTRLEN
-#define INET6_ADDRSTRLEN 48
-#endif
-
-extern "C" int setenv (const char *__string, const char *__value, int __overwrite);
-extern "C" void tzset();
-
-//static void obtain_time(void);
-//static void initialize_sntp(void);
-
-#ifdef CONFIG_SNTP_TIME_SYNC_METHOD_CUSTOM
-void sntp_sync_time(struct timeval *tv)
-{
-   settimeofday(tv, NULL);
-   LOG_I(TAG, "Time is synchronized from custom code");
-   sntp_set_sync_status(SNTP_SYNC_STATUS_COMPLETED);
-}
-#endif
-
-// Called-back function when the time is setup from NTP
-void PM_Time_Mngt_time_sync_notification_cb(struct timeval *tv)
-{
-  LOG_I(TAG, "Notification of a time synchronization event");
-
-  // If there is no RTC module or if it lost its power, set the time with the NTP time
-  if (isRTCLostPower == true || isRTCFound == true) {
-    LOG_I(TAG, "Initialize RTC time with NTP server");
-
-    // Get current time. It has been sent by NTP calls.
-    time(&now);
-
-    // adjust time of rtc with the time get from NTP server
-    DateTime DT_now (now);
-    if (DT_now.isValid()) {
-      char DT_now_str[20]= "YYYY-MM-DD hh:mm:ss";
-      DT_now.toString(DT_now_str);
-      LOG_I(TAG, "Adjust the time of RTC with the NTP time: %s", DT_now_str);
-      rtc.adjust(DT_now);
-    }
-    else {
-      LOG_E(TAG, "Cannot set time to RTC as DT_now is not valid !!!!" );
-    }
-  }
-}
 
 void PM_Time_Mngt_initialize_time(void)
 {
@@ -107,128 +42,62 @@ void PM_Time_Mngt_initialize_time(void)
         timeval tv = {now, 0}; 
         timezone tz = {0,0} ;
         int ret = settimeofday(&tv, &tz);
-        if ( ret != 0 ) {LOG_E(TAG, "Cannot set time from RTC" ); };
-        
+        if ( ret != 0 ) {LOG_E(TAG, "Cannot set time from RTC" ); }; 
       }
     }
   }
-#ifdef CONFIG_SNTP_TIME_SYNC_METHOD_SMOOTH
-    else {
-        // add 500 ms error to the current system time.
-        // Only to demonstrate a work of adjusting method!
-        {
-            LOG_I(TAG, "Add a error for test adjtime");
-            struct timeval tv_now;
-            gettimeofday(&tv_now, NULL);
-            int64_t cpu_time = (int64_t)tv_now.tv_sec * 1000000L + (int64_t)tv_now.tv_usec;
-            int64_t error_time = cpu_time + 500 * 1000L;
-            struct timeval tv_error = { .tv_sec = error_time / 1000000L, .tv_usec = error_time % 1000000L };
-            settimeofday(&tv_error, NULL);
-        }
-
-        LOG_I(TAG, "Time was set, now just adjusting it. Use SMOOTH SYNC method.");
-        obtain_time();
-        // update 'now' variable with current time
-        time(&now);
-    }
-#endif
-
-    char strftime_buf[64];
-
-    // Set timezone to the zone provided in the parameter file to have the real local time
-    setenv("TZ", PM_TimeZone, 1);
-    tzset();
-    localtime_r(&now, &timeinfo);
-    strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
-    LOG_I(TAG, "The current local date/time is: %s", strftime_buf);
-
-    if (sntp_get_sync_mode() == SNTP_SYNC_MODE_SMOOTH) {
-        struct timeval outdelta;
-        while (sntp_get_sync_status() == SNTP_SYNC_STATUS_IN_PROGRESS) {
-            adjtime(NULL, &outdelta);
-            LOG_I(TAG, "Waiting for adjusting time ... outdelta = %jd sec: %li ms: %li us",
-                        (intmax_t)outdelta.tv_sec,
-                        outdelta.tv_usec/1000,
-                        outdelta.tv_usec%1000);
-            vTaskDelay(2000 / portTICK_PERIOD_MS);
-        }
-    }
-
-    //const int deep_sleep_sec = 10;
-    //LOG_I(TAG, "Entering deep sleep for %d seconds", deep_sleep_sec);
-    //esp_deep_sleep(1000000LL * deep_sleep_sec);
+  // Set timezone to the zone provided in the parameter file to have the real local time
+  char strftime_buf[64];
+  setenv("TZ", PM_TimeZone, 1);
+  tzset();
+  localtime_r(&now, &timeinfo);
+  strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
+  LOG_I(TAG, "The current local date/time is: %s", strftime_buf);
 }
 
 void PM_Time_Mngt_obtain_time(void)
 {
-    //ESP_ERROR_CHECK( nvs_flash_init() );
-    //ESP_ERROR_CHECK( esp_netif_init());
-    //ESP_ERROR_CHECK( esp_event_loop_create_default() );
+  bool getTimeFromNTP = false;
+  int retry = 0;
+  const int retry_count = 30;
+  while (! getTimeFromNTP && ++retry <= retry_count) {
+    LOG_I(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
+    configTime(0, 0,"0.pool.ntp.org","1.pool.ntp.org","2.pool.ntp.org"); // 3 possible NTP servers
+    setenv("TZ",PM_TimeZone,1);                       // configure local time with automatic DST  
+    tzset();
+    delay(200);
 
-    /**
-     * NTP server address could be aquired via DHCP,
-     * see following menuconfig options:
-     * 'LWIP_DHCP_GET_NTP_SRV' - enable STNP over DHCP
-     * 'LWIP_SNTP_DEBUG' - enable debugging messages
-     *
-     * NOTE: This call should be made BEFORE esp aquires IP address from DHCP,
-     * otherwise NTP option would be rejected by default.
-     */
-#ifdef LWIP_DHCP_GET_NTP_SRV
-    sntp_servermode_dhcp(1);      // accept NTP offers from DHCP server, if any
-#endif
-
-    /* This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
-     * Read "Establishing Wi-Fi or Ethernet Connection" section in
-     * examples/protocols/README.md for more information about this function.
-     */
-    //ESP_ERROR_CHECK(example_connect());
-
-    PM_Time_Mngt_initialize_sntp();
-
-    // wait for time to be set
-    time_t now = 0;
-    struct tm timeinfo = { 0 };
-    int retry = 0;
-    const int retry_count = 30;
-    while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
-        LOG_I(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
+    tm timeinfo;
+    if(!getLocalTime(&timeinfo)){
+        LOG_W(TAG, "Failed to obtain time from NTP servers");
     }
+    else {
+      getTimeFromNTP = true;
+      time(&now);
+      char strftime_buf[64];
+      localtime_r(&now, &timeinfo);
+      strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
+      LOG_I(TAG, "The current local date/time is: %s", strftime_buf);
+    }
+  }
+
+  // If there is no RTC module or if it lost its power, set the time with the NTP time
+  if (isRTCLostPower == true || isRTCFound == true) {
+    LOG_I(TAG, "Initialize RTC time with NTP time");
+
+    // Get current time. It has been sent by NTP calls.
     time(&now);
-    localtime_r(&now, &timeinfo);
 
-    //ESP_ERROR_CHECK( example_disconnect() );
-}
-
-void PM_Time_Mngt_initialize_sntp(void)
-{
-  LOG_I(TAG, "Initializing SNTP");
-  sntp_setoperatingmode(SNTP_OPMODE_POLL);
-
-  char ntp_fr[] = "fr.pool.ntp.org";
-  char ntp[]    = "pool.ntp.org";
-  sntp_setservername(0, ntp_fr);  // set the primary NTP server (will be used only if SNTP_MAX_SERVERS > 1)
-  sntp_setservername(1, ntp);     // set the secondary NTP server (will be used only if SNTP_MAX_SERVERS > 1)
-
-  sntp_set_time_sync_notification_cb(PM_Time_Mngt_time_sync_notification_cb);
-
-#ifdef CONFIG_SNTP_TIME_SYNC_METHOD_SMOOTH
-    sntp_set_sync_mode(SNTP_SYNC_MODE_SMOOTH);
-#endif
-  sntp_init();
-
-  LOG_I(TAG, "List of configured NTP servers:");
-
-  for (uint8_t i = 0; i < SNTP_MAX_SERVERS; ++i){
-    if (sntp_getservername(i)){
-      LOG_I(TAG, "server %d: %s", i, sntp_getservername(i));
-    } else {
-      // we have either IPv4 or IPv6 address, let's print it
-      char buff[INET6_ADDRSTRLEN];
-      ip_addr_t const *ip = sntp_getserver(i);
-      if (ipaddr_ntoa_r(ip, buff, INET6_ADDRSTRLEN) != NULL)
-          LOG_I(TAG, "server %d: %s", i, buff);
+    // adjust time of rtc with the time get from NTP server
+    DateTime DT_now (now);
+    if (DT_now.isValid()) {
+      char DT_now_str[20]= "YYYY-MM-DD hh:mm:ss";
+      DT_now.toString(DT_now_str);
+      LOG_I(TAG, "Adjust the time of RTC with the NTP time: %s", DT_now_str);
+      rtc.adjust(DT_now);
+    }
+    else {
+      LOG_E(TAG, "Cannot set time to RTC as DT_now is not valid !!!!" );
     }
   }
 }

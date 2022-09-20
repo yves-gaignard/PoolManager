@@ -87,8 +87,8 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   2700000.0, //double  pH_Kp;
   0.0,   // double  pH_Ki;
   0.0,   // double  pH_Kd;
-  3.49,  //3.49625783, // double  pHCalibCoeffs0;
-  -1.889, //-2.011338191, // double  pHCalibCoeffs1;
+  3.59745102214514,  // double  pHCalibCoeffs0;
+  -2.01050663685075, // double  pHCalibCoeffs1;
   250.0, // double  OrpValue;                       // Current redox measure unit: mV
   1800000, //ulong   OrpPIDWindowSize;
   0,     // ulong   OrpPIDwindowStartTime;          // Orp PID window start time   
@@ -98,8 +98,8 @@ PM_SwimmingPoolMeasures     pm_measures     = {
   2700000.0, //double  Orp_Kp;
   0.0,   // double  Orp_Ki;
   0.0,   // double  Orp_Kd;
-  -876.430775, // double  OrpCalibCoeffs0;
-  2328.8985,   // double  OrpCalibCoeffs1;
+  -914.572864321609, //-876.430775, // double  OrpCalibCoeffs0;
+  2327.32663316583, //2328.8985,   // double  OrpCalibCoeffs1;
   0,     // time_t  DayFiltrationUptime;            // Filtration Duration since the begin of the day
   0,     // time_t  DayFiltrationTarget;            // Maximum Filtration duration for the whole day
   0,     // time_t  PeriodFiltrationStartTime;      // Next period start time of the filtration
@@ -198,7 +198,7 @@ void setup() {
   Log.setTag("PM_Config"           , LOG_LEVEL);
   Log.setTag("PM_I2CScan"          , LOG_LEVEL);
   Log.setTag("PM_Log"              , LOG_LEVEL);
-  Log.setTag("PM_main"             , LOG_VERBOSE);
+  Log.setTag("PM_main"             , LOG_DEBUG);
   Log.setTag("PM_NVS"              , LOG_LEVEL);
   Log.setTag("PM_OTA_Web_Srv"      , LOG_LEVEL);
   Log.setTag("PM_Pump"             , LOG_LEVEL);
